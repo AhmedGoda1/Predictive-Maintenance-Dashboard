@@ -1,0 +1,11 @@
+# Database binary
+*.db
+maintenance.db
+
+# Python compiled bytecode
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+.venv/
