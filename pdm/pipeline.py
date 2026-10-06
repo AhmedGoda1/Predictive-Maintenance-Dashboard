@@ -88,4 +88,5 @@ def build(db_path=None, fleet: bool = True, retrain: bool = False) -> dict:
     result = {"motor": load_motor(db_path)}
     if fleet:
         result["fleet"] = load_fleet(db_path, retrain=retrain)
+    db.mark_current(db_path)        # last step: a half-built database never counts as current
     return result

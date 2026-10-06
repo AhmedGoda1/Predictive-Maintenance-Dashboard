@@ -105,3 +105,35 @@ def test_models_and_metrics(path):
 def test_unknown_asset(path):
     with pytest.raises(KeyError):
         db.get_asset("nope", path)
+
+
+def _old_schema_db(path):
+    """What an earlier deployment of the app left behind."""
+    import sqlite3
+    conn = sqlite3.connect(path)
+    conn.executescript("CREATE TABLE machines (machine_id TEXT PRIMARY KEY, name TEXT);"
+                       "CREATE TABLE sensor_readings (id INTEGER PRIMARY KEY, machine_id TEXT);")
+    conn.execute("INSERT INTO machines VALUES ('MTR_01', 'Sawmill Main Drive')")
+    conn.commit()
+    conn.close()
+
+
+def test_is_current_tells_old_partial_and_complete_databases_apart(tmp_path):
+    assert not db.is_current(tmp_path / "missing.db")
+    stale = tmp_path / "stale.db"
+    _old_schema_db(stale)
+    assert not db.is_current(stale)                         # old schema: tables missing, version 0
+
+    p = tmp_path / "new.db"
+    db.init_db(p)
+    assert not db.is_current(p)                             # schema only, nothing built yet
+    db.upsert_asset("A1", "brushed_dc_motor", "x", db_path=p)
+    assert not db.is_current(p)                             # data but never stamped: an interrupted build
+    db.mark_current(p)
+    assert db.is_current(p)
+
+
+def test_unreadable_file_is_not_current(tmp_path):
+    junk = tmp_path / "junk.db"
+    junk.write_bytes(b"this is not a sqlite database" * 20)
+    assert not db.is_current(junk)
