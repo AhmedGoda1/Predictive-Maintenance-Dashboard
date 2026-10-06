@@ -9,22 +9,28 @@ interval, and shows them in a dashboard.
 ## Architecture
 
 ```
-dataset adapters ──▶ asset-agnostic SQLite ──▶ health index (layer A)  ──▶ alerts ──▶ dashboard
- motor (Zenodo)       assets / readings /       learned RUL model (layer C)
- turbofan (NASA)      measurements (long)       single-run RUL (experimental)
+devices / gateways ──MQTT──▶ broker ──▶ ingestion service ──▶ asset-agnostic SQLite ──▶ dashboard
+(or scripts/simulate.py)    (TLS, ACLs)  validate · store ·     assets / readings /       fleet + asset views
+                                         score · alert          measurements (long)
+                                         ▲                       ▲
+                                         │ health index (layer A), learned RUL model (layer C)
+dataset adapters (motor, C-MAPSS) ───────┴─ the same code scores recorded runs offline
 ```
 
 | Path | Purpose |
 |---|---|
 | `pdm/registry.py` | Asset types: channels, units, which channels feed the health index, limits, RUL thresholds |
 | `pdm/schema.sql`, `pdm/db.py` | Asset-agnostic schema and access layer (`assets`, `readings`, `measurements`, `failure_events`, `health_scores`, `maintenance_alerts`, `models`, `metrics`) |
+| `pdm/ingest.py` | **Transport-independent ingestion**: validation, idempotent storage, scoring on arrival |
+| `pdm/mqtt_ingest.py` | **MQTT ingestion service** (`python -m pdm.mqtt_ingest`) |
+| `pdm/simulator.py`, `scripts/simulate.py` | Simulated sensors that publish recorded runs as live data |
 | `pdm/datasets/` | Adapters turning a source dataset into the common `Run` format: `motor.py`, `cmapss.py` |
 | `pdm/health.py` | Health index, status and alerts for any registered asset type |
 | `pdm/rul.py` | Learned RUL model (fleet-level, prediction interval), evaluation, single-run fallback |
 | `pdm/train.py` | Trains and evaluates the RUL model on the C-MAPSS subsets |
-| `pdm/pipeline.py`, `build_db.py` | Builds `maintenance.db` from the datasets |
-| `dashboard/` | Streamlit app: fleet overview and asset detail (builds the database on first start if missing) |
-| `tests/` | pytest suite |
+| `pdm/pipeline.py`, `build_db.py` | Builds `maintenance.db` with the recorded demo assets |
+| `dashboard/` | Streamlit app: fleet overview, asset detail, live demo feed (builds the database on first start if missing) |
+| `tests/` | pytest suite, including integration tests against a real MQTT broker |
 
 ## Run it
 
@@ -32,7 +38,7 @@ dataset adapters ──▶ asset-agnostic SQLite ──▶ health index (layer A
 pip install -r requirements.txt
 python build_db.py                      # builds maintenance.db (the dashboard does this itself if it is missing)
 streamlit run dashboard/app.py
-python -m pytest
+python -m pytest                        # the MQTT tests need a broker: mosquitto on the PATH, or pip install amqtt
 
 python scripts/fetch_cmapss.py          # optional: all four C-MAPSS subsets (only FD001 is in the repo)
 python -m pdm.train                     # optional: retrain / re-evaluate the RUL model on every available subset
@@ -51,6 +57,97 @@ python -m pdm.train                     # optional: retrain / re-evaluate the RU
 - RUL is never drawn on a shared axis across asset types, because the units differ (cycles vs. minutes);
   the fleet view draws one RUL chart per type. Status colours always come with an icon and a label.
 - A new asset type appears in both views once it is registered; no dashboard code changes.
+
+## Live ingestion (MQTT)
+
+Devices or a gateway publish to an MQTT broker; the ingestion service subscribes, validates, stores and scores,
+and the dashboard shows the result. No real equipment is connected in this project, so `scripts/simulate.py`
+publishes recorded runs as if the assets were being measured right now. Everything after the broker is the real
+path.
+
+```bash
+mosquitto -c mosquitto.conf                                   # any MQTT broker (Mosquitto, EMQX, HiveMQ, ...)
+PDM_MQTT_HOST=localhost python -m pdm.mqtt_ingest             # the ingestion service
+PDM_MQTT_HOST=localhost python scripts/simulate.py --engines 3 --motor     # simulated sensors
+streamlit run dashboard/app.py                                # watch the fleet change
+```
+
+**Topics** (JSON payloads; `<id>` = letters, digits, `.` `_` `-`, at most 64 characters):
+
+| Topic | Direction | Payload |
+|---|---|---|
+| `pdm/v1/assets/<id>/register` | in | `{"type_id": "turbofan_engine", "name": "...", "site": "...", "source": "...", "metadata": {}}` (known types: see `pdm/registry.py`) |
+| `pdm/v1/assets/<id>/readings` | in | one reading `{"ts": "2024-05-01T12:00:00Z", "age": 31, "values": {"s2": 642.1}}`, or `{"readings": [...]}` or a list (at most 1000) |
+| `pdm/v1/assets/<id>/failure` | in | `{"ts": "...", "age": 148, "mode": "HPC"}`: a maintenance outcome, used as the failure label |
+| `pdm/v1/assets/<id>/state` | out, retained | the asset's current status, health index and RUL estimate, and the counts of the last message |
+| `pdm/v1/assets/<id>/rejected` | out | what was refused and why |
+| `pdm/v1/service/status` | out, retained | `online` / `offline` (the last will of the service) |
+
+```bash
+mosquitto_pub -t pdm/v1/assets/press4/register -q 1 -m '{"type_id": "brushed_dc_motor", "name": "Press 4 drive"}'
+mosquitto_pub -t pdm/v1/assets/press4/readings -q 1 -m '{"ts": "2026-10-06T10:00:00Z", "values": {"voltage_regime": 3, "temp_motor": 41.5, "vib_1x": 0.12}}'
+mosquitto_sub -t 'pdm/v1/assets/+/state' -t 'pdm/v1/assets/+/rejected' -v
+```
+
+**What the service guarantees**
+- A reading must name channels of the asset's type, with finite numbers. A bad reading is refused with a reason
+  on `rejected`; the good ones in the same message are kept.
+- Delivery is at-least-once: QoS 1, a persistent session (fixed client id), and acknowledgement to the broker only
+  after the message is stored and scored. If the service is down, the broker keeps the messages. Re-sending a
+  reading (same timestamp) is a harmless duplicate, so redelivery never double-counts.
+- A reading older than the newest stored one is refused (out of order); `age` must increase. `age` is optional for
+  second-based types (derived from `ts`) and required for the others (e.g. engine cycles). A missing operating
+  condition (e.g. the motor's `voltage_regime`) carries forward the last known value.
+- An asset is scored once it has enough readings to learn its healthy baseline (20); until then it is
+  reported as *Learning*. After that every batch re-scores the asset with the same code as the offline pipeline:
+  health index, status, the learned RUL model when one is registered for the type, and alerts (appended once,
+  never re-created, so their ids stay stable).
+- A bad message never stops the service; an error while scoring is reported and the data is kept.
+
+**Security.** Run the broker with TLS and give every client its own credentials. This ACL was tested against
+Mosquitto (`tests/test_mqtt_security.py`): a device can publish only its own inbound topics and read only its own
+answers, and cannot forge the service's `state` / `rejected` messages.
+
+```
+user pdm-service
+topic read  pdm/v1/assets/+/register
+topic read  pdm/v1/assets/+/readings
+topic read  pdm/v1/assets/+/failure
+topic write pdm/v1/assets/+/state
+topic write pdm/v1/assets/+/rejected
+topic write pdm/v1/service/status
+
+user dev-press4                       # one such block per device
+topic write pdm/v1/assets/press4/register
+topic write pdm/v1/assets/press4/readings
+topic write pdm/v1/assets/press4/failure
+topic read  pdm/v1/assets/press4/state
+topic read  pdm/v1/assets/press4/rejected
+```
+
+Client settings come from environment variables: `PDM_MQTT_HOST`, `PDM_MQTT_PORT` (default 1883), `PDM_MQTT_USERNAME`,
+`PDM_MQTT_PASSWORD`, `PDM_MQTT_TLS` (default on for port 8883), `PDM_MQTT_CA_CERTS`, `PDM_MQTT_CLIENT_ID`.
+Use one subscriber per client id: two with the same id take the broker session from each other.
+
+**The hosted dashboard.** Streamlit Cloud can only run the dashboard, so when `PDM_MQTT_HOST` (and the other
+variables, as app secrets) point at a broker the app reaches, it runs the ingestion subscriber itself, and its
+"Live demo feed" publishes to that broker. Anyone can then publish to the same topics, e.g. `scripts/simulate.py`
+from a laptop, and the hosted fleet view updates. Without a broker the demo feed writes straight into the ingestion
+code and the sidebar says so.
+
+**Limits of this MVP**
+- One subscriber processes messages in order, one at a time. Measured on a laptop-class CPU: about 10 messages per
+  second (80-100 ms each, mostly scoring the asset's history). The cost is per message, not per reading, so a
+  device that sends batches of readings is far cheaper than one that sends them one by one. To scale out, run one
+  subscriber per group of assets (separate client ids and topic filters).
+- Every batch re-scores the asset's whole history. That is fine for hundreds of readings per asset; for long
+  histories, score a window and keep the baseline.
+- The healthy baseline of an operating regime is provisional until the regime has 20 readings, so statuses of its
+  first readings can still change.
+- SQLite on one machine. A production deployment would use a server database (PostgreSQL / TimescaleDB) with the
+  same schema.
+- Tested against Mosquitto, including TLS with a self-signed certificate, passwords and ACLs; also against the pure
+  Python `amqtt` broker, which cannot test offline queuing. Not tested: a hosted broker service, broker clustering.
 
 ## Adding a new kind of equipment
 
@@ -142,6 +239,5 @@ only, so the predictions are out-of-sample. At their last reading, the remaining
 - Level B (trend extrapolation) for assets with too few failures for level C.
 - Survival-style handling of assets that have not failed yet, and domain adaptation / fine-tuning on a customer's
   few failures.
-- Live ingestion (HTTP / MQTT) instead of replaying recorded data.
 - Model versioning with drift monitoring and a retraining loop fed by maintenance outcomes.
-- Authentication, multi-tenancy and CMMS integration.
+- Dashboard login, multi-tenancy and CMMS integration (broker-level authentication and per-device ACLs exist).

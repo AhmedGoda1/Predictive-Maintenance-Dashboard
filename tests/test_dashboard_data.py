@@ -113,3 +113,34 @@ def test_load_fleet_recovers_from_a_stale_database(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_NAME", path)
     fleet = ds.load_fleet()
     assert len(fleet.assets) == 21
+
+
+def test_readings_that_are_stored_but_not_scored_yet_are_not_shown(live_db, monkeypatch):
+    """Under live ingestion the newest readings are stored a moment before they are scored."""
+    from pdm import ingest
+    from test_ingest import engine_rows
+    monkeypatch.setattr(db, "DB_NAME", live_db)
+    ingest.register_asset("E1", "turbofan_engine", source="NASA C-MAPSS FD001", db_path=live_db)
+    rows, _ = engine_rows(n=40)
+    ingest.ingest_readings("E1", rows[:30], db_path=live_db)
+    ingest.ingest_readings("E1", rows[30:], db_path=live_db, score=False)          # stored, scoring still pending
+    a = ds.load_asset("E1")
+    assert len(a.data) == 30 and a.data["status"].notna().all()
+    assert len(db.get_series("E1", live_db)) == 40
+    ingest.score_asset("E1", live_db)
+    assert len(ds.load_asset("E1").data) == 40
+
+
+def test_fleet_snapshot_lists_learning_assets_last(live_db, monkeypatch):
+    from pdm import ingest
+    from test_ingest import engine_rows
+    monkeypatch.setattr(db, "DB_NAME", live_db)
+    ingest.register_asset("NEW", "turbofan_engine", source="NASA C-MAPSS FD001", metadata={"live": True}, db_path=live_db)
+    ingest.register_asset("E1", "turbofan_engine", source="NASA C-MAPSS FD001", db_path=live_db)
+    ingest.ingest_readings("NEW", engine_rows(n=5)[0], db_path=live_db)
+    ingest.ingest_readings("E1", engine_rows(n=30)[0], db_path=live_db)
+    snap = ds.snapshot(ds.load_fleet(), 1.0)
+    assert list(snap["asset_id"]) == ["E1", "NEW"] and list(snap["status"]) == ["Healthy", "Learning"]
+    new = snap.set_index("asset_id").loc["NEW"]
+    assert new["live"] and new["n_readings"] == 5 and "5/20" in new["method"]
+    assert snap.set_index("asset_id").loc["E1", "live"] == False  # noqa: E712

@@ -5,6 +5,8 @@ Two asset types are loaded, which shows the same pipeline serving different equi
   * a fleet of turbofan engines (NASA C-MAPSS FD001 test engines): health index + learned RUL
     with prediction interval, from a model trained only on the FD001 *train* engines
 """
+import json
+
 import numpy as np
 import pandas as pd
 
@@ -45,6 +47,31 @@ def load_motor(db_path=None) -> dict:
     return result
 
 
+def register_turbofan_model(db_path, subset: str = FLEET_SUBSET, model: rul.RulModel = None) -> None:
+    """Records the trained turbofan model and its evaluation in the model registry of the database."""
+    path = train.model_path(subset)
+    model = model or rul.RulModel.load(path)
+    metrics_json = {}
+    if train.METRICS_FILE.exists():
+        metrics_json = json.loads(train.METRICS_FILE.read_text()).get(subset, {})
+    db.register_model(
+        f"turbofan_{subset}", "turbofan_engine", "learned", source=f"{cmapss.SOURCE} {subset} train engines",
+        artifact_path=str(path.relative_to(train.MODELS_DIR.parent)),
+        params={"rul_cap": model.rul_cap, "window": model.window, "n_regimes": model.n_regimes,
+                "coverage": model.coverage}, metrics=metrics_json, db_path=db_path)
+    if metrics_json:
+        flat = {f"test_{k}": v for k, v in metrics_json["test"].items()}
+        flat.update({f"baseline_{name}_{k}": v for name, m in metrics_json["baselines"].items() for k, v in m.items()})
+        db.save_metrics(f"turbofan_{subset}", flat, db_path)
+
+
+def ensure_models(db_path=None) -> None:
+    """Registers the committed turbofan model in a database that does not know it yet (e.g. a fresh one)."""
+    known = db.get_models("turbofan_engine", db_path)
+    if (known.empty or not (known["kind"] == "learned").any()) and train.model_path(FLEET_SUBSET).exists():
+        register_turbofan_model(db_path)
+
+
 def load_fleet(db_path=None, subset: str = FLEET_SUBSET, size: int = FLEET_SIZE, retrain: bool = False) -> dict:
     """Loads a spread of held-out C-MAPSS test engines and scores them with the learned model."""
     if not cmapss.available(subset):
@@ -58,20 +85,7 @@ def load_fleet(db_path=None, subset: str = FLEET_SUBSET, size: int = FLEET_SIZE,
     units = [int(u) for u in all_units[:: max(1, len(all_units) // size)][:size]]
     runs = cmapss.load(subset, "test", units=set(units))
 
-    results_file = train.METRICS_FILE
-    metrics_json = {}
-    if results_file.exists():
-        import json
-        metrics_json = json.loads(results_file.read_text()).get(subset, {})
-    db.register_model(
-        f"turbofan_{subset}", "turbofan_engine", "learned", source=f"{cmapss.SOURCE} {subset} train engines",
-        artifact_path=str(path.relative_to(train.MODELS_DIR.parent)),
-        params={"rul_cap": model.rul_cap, "window": model.window, "n_regimes": model.n_regimes,
-                "coverage": model.coverage}, metrics=metrics_json, db_path=db_path)
-    if metrics_json:
-        flat = {f"test_{k}": v for k, v in metrics_json["test"].items()}
-        flat.update({f"baseline_{name}_{k}": v for name, m in metrics_json["baselines"].items() for k, v in m.items()})
-        db.save_metrics(f"turbofan_{subset}", flat, db_path)
+    register_turbofan_model(db_path, subset, model)
 
     alerts = 0
     for run in runs:

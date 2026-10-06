@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 
 from pdm import db, pipeline, registry  # noqa: E402
 
-STATUS_RANK = {"Healthy": 0, "Warning": 1, "Critical": 2, "Failed": 3}
+STATUS_RANK = {"Learning": -1, "Healthy": 0, "Warning": 1, "Critical": 2, "Failed": 3}
 METHOD_LABELS = {
     "learned": "Learned model",
     "single_run_experimental": "Experimental (single run)",
@@ -84,13 +84,21 @@ class Fleet:
     failures: pd.DataFrame
     alerts: pd.DataFrame
     models: pd.DataFrame
+    counts: pd.DataFrame        # readings per asset (assets still learning have readings but no health yet)
 
 
 def load_fleet() -> Fleet:
     ensure_db()
     assets = db.list_assets()
     assets["metadata"] = assets["metadata"].map(lambda m: json.loads(m or "{}"))
-    return Fleet(assets, db.get_health(), db.get_failures(), db.get_alerts(), db.get_models())
+    return Fleet(assets, db.get_health(), db.get_failures(), db.get_alerts(), db.get_models(),
+                 db.get_reading_counts())
+
+
+def data_stamp() -> tuple:
+    """Changes whenever new readings, scores, alerts or failures reach the database (cache key for live data)."""
+    ensure_db()
+    return db.data_stamp()
 
 
 def snapshot(fleet: Fleet, fraction: float = 1.0) -> pd.DataFrame:
@@ -102,19 +110,23 @@ def snapshot(fleet: Fleet, fraction: float = 1.0) -> pd.DataFrame:
     fraction = min(max(float(fraction), 0.0), 1.0)
     fail_age = fleet.failures.set_index("asset_id")["age"].to_dict()
     names = fleet.assets.set_index("asset_id")
+    counts = fleet.counts.set_index("asset_id") if len(fleet.counts) else pd.DataFrame(columns=["n_readings", "last_ts", "last_age"])
     rows = []
+
+    def common(asset_id):
+        type_id = names.loc[asset_id, "type_id"]
+        return {"asset_id": asset_id, "name": names.loc[asset_id, "name"], "type_id": type_id,
+                "type_name": registry.get_type(type_id).name,
+                "live": bool(names.loc[asset_id, "metadata"].get("live", False))}
+
     for asset_id, h in fleet.health.groupby("asset_id", sort=True):
         h = h.sort_values("age").reset_index(drop=True)
         i = int(round(fraction * (len(h) - 1)))
         r = h.iloc[i]
         alerts = fleet.alerts[(fleet.alerts["asset_id"] == asset_id) & (fleet.alerts["ts"] <= r["ts"])]
         latest = alerts.iloc[0] if len(alerts) else None      # get_alerts returns newest first
-        type_id = names.loc[asset_id, "type_id"]
         rows.append({
-            "asset_id": asset_id,
-            "name": names.loc[asset_id, "name"],
-            "type_id": type_id,
-            "type_name": registry.get_type(type_id).name,
+            **common(asset_id),
             "status": r["status"], "health_score": r["health_score"], "drift": r["drift"],
             "top_driver": r["top_driver"],
             "rul_pred": r["rul_pred"], "rul_low": r["rul_low"], "rul_high": r["rul_high"],
@@ -125,6 +137,21 @@ def snapshot(fleet: Fleet, fraction: float = 1.0) -> pd.DataFrame:
             "latest_level": latest["status_level"] if latest is not None else "",
             "latest_alert": latest["detected_issue"] if latest is not None else "",
             "latest_action": latest["suggested_action"] if latest is not None else "",
+        })
+
+    # assets with readings but no health scores yet are still learning their healthy baseline
+    scored = set(fleet.health["asset_id"])
+    for asset_id in fleet.assets["asset_id"]:
+        if asset_id in scored:
+            continue
+        n = int(counts.loc[asset_id, "n_readings"]) if asset_id in counts.index else 0
+        rows.append({
+            **common(asset_id), "status": "Learning", "health_score": np.nan, "drift": np.nan, "top_driver": None,
+            "rul_pred": np.nan, "rul_low": np.nan, "rul_high": np.nan, "rul_true": np.nan,
+            "age": counts.loc[asset_id, "last_age"] if n else np.nan,
+            "ts": counts.loc[asset_id, "last_ts"] if n else pd.NaT, "position": max(n, 1), "n_readings": n,
+            "method": f"Learning baseline ({n}/{registry.get_type(names.loc[asset_id, 'type_id']).baseline_readings})",
+            "open_alerts": 0, "latest_level": "", "latest_alert": "", "latest_action": "",
         })
     snap = pd.DataFrame(rows)
     snap["_rank"] = snap["status"].map(STATUS_RANK)
@@ -178,7 +205,13 @@ def load_asset(asset_id: str) -> AssetData:
     series = db.get_series(asset_id)
     health = db.get_health(asset_id)[["age", "drift", "health_score", "status", "top_driver", "method",
                                        "rul_pred", "rul_low", "rul_high"]]
-    data = series.merge(health, on="age", how="left")
+    data = series.merge(health, on="age", how="left") if len(series) else series.reindex(
+        columns=[*series.columns, *health.columns.difference(series.columns)])
+    # Live ingestion stores a reading first and scores it a moment later: show only scored readings (the rest
+    # appear on the next refresh) instead of a newest row without status or health
+    scored = data["health_score"].notna()
+    if scored.any():
+        data = data.loc[:scored[scored].index.max()].copy()
     failure = db.get_failure(asset_id)
     data["rul_true"] = (failure["age"] - data["age"]).clip(lower=0) if failure else np.nan
     factor, label = unit_factor(t.type_id)
