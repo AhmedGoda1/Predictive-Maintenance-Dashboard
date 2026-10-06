@@ -41,6 +41,9 @@ class AssetType:
     rul_critical: Optional[float] = None           # predicted RUL below this -> Critical
     rul_cap: Optional[float] = None                # piecewise-linear RUL target cap used in training
     baseline_readings: int = 20                    # first N readings of a regime = healthy reference
+    stress_channel: Optional[str] = None           # condition channel whose high values mean overstress
+    stress_above: float = 0.0                      #   ... above this value
+    stress_label: str = ""                         #   ... shown in the dashboard, e.g. "5 V overstress supply"
     smooth_window: int = 7                         # rolling median over readings
     extra: dict = field(default_factory=dict, hash=False, compare=False)
 
@@ -90,6 +93,7 @@ MOTOR = register_type(AssetType(
     name="Brushed DC motor",
     age_unit="s",
     regime_channel="voltage_regime",
+    stress_channel="voltage_regime", stress_above=4.0, stress_label="5 V overstress supply",
     limits=(("temp_motor", 60.0, 70.0),),
     channels=(
         ChannelDef("voltage_regime", "V", CONDITION, "Nominal supply voltage of the test phase (3 = nominal, 5 = overstress)"),

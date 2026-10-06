@@ -22,8 +22,10 @@ RANK_STATUS = {v: k for k, v in STATUS_RANK.items()}
 
 
 def _debounce(raw: list, n: int = DEBOUNCE) -> list:
-    """A status change is adopted only after it has been seen n times in a row ("Failed" at once)."""
-    out, current, streak, candidate = [], raw[0], 0, raw[0]
+    """A status change is adopted only after it has been seen n times in a row ("Failed" at once). Starts Healthy."""
+    # assets start Healthy: the baseline is built from the first readings, so a status other than Healthy
+    # must hold for n readings before it is adopted (a noisy very first reading is not a status)
+    out, current, streak, candidate = [], "Healthy", 0, "Healthy"
     for s in raw:
         if s == current:
             streak, candidate = 0, current

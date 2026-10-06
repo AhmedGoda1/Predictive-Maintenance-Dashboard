@@ -23,7 +23,7 @@ dataset adapters ──▶ asset-agnostic SQLite ──▶ health index (layer A
 | `pdm/rul.py` | Learned RUL model (fleet-level, prediction interval), evaluation, single-run fallback |
 | `pdm/train.py` | Trains and evaluates the RUL model on the C-MAPSS subsets |
 | `pdm/pipeline.py`, `build_db.py` | Builds `maintenance.db` from the datasets |
-| `dashboard/` | Streamlit app (currently the motor view; builds the database on first start if missing) |
+| `dashboard/` | Streamlit app: fleet overview and asset detail (builds the database on first start if missing) |
 | `tests/` | pytest suite |
 
 ## Run it
@@ -37,6 +37,20 @@ python -m pytest
 python scripts/fetch_cmapss.py          # optional: all four C-MAPSS subsets (only FD001 is in the repo)
 python -m pdm.train                     # optional: retrain / re-evaluate the RUL model on every available subset
 ```
+
+## Dashboard
+
+- **Fleet overview:** every asset, ranked by maintenance priority (worst status first, then shortest estimated
+  remaining life). Status counts, a priority table (click a row to open the asset), health index by asset,
+  RUL with its 80 % interval, open alerts, and a Models & data tab with the model registry and the C-MAPSS
+  validation table. A filter row sets the asset type and a *snapshot* slider that replays the whole fleet
+  through its recorded life.
+- **Asset detail:** KPIs, health timeline, RUL estimate vs. actual with the interval band, any sensor of the
+  asset type (with its limits and overstress periods), alert log with work-order buttons, and how the numbers
+  were produced and how far to trust them. It has its own play / pause / position replay.
+- RUL is never drawn on a shared axis across asset types, because the units differ (cycles vs. minutes);
+  the fleet view draws one RUL chart per type. Status colours always come with an icon and a label.
+- A new asset type appears in both views once it is registered; no dashboard code changes.
 
 ## Adding a new kind of equipment
 
@@ -125,7 +139,6 @@ only, so the predictions are out-of-sample. At their last reading, the remaining
 
 ## What is still missing for a commercial product
 
-- A fleet view in the dashboard that mixes the asset types (the data and model are ready, the UI is not).
 - Level B (trend extrapolation) for assets with too few failures for level C.
 - Survival-style handling of assets that have not failed yet, and domain adaptation / fine-tuning on a customer's
   few failures.
