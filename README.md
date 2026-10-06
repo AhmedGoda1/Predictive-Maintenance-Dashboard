@@ -35,7 +35,7 @@ python -m pytest
 ## Dataset
 
 *F.A.I.R. open dataset of brushed DC motor faults for testing of AI algorithms*,
-https://zenodo.org/records/4314249, licence **CC-BY-4.0** (author: Anibal Reñones).
+https://zenodo.org/records/4314249, licence **CC-BY-4.0**. Reñones, A. (2020), CARTIF, DOI 10.5281/zenodo.4314249.
 
 - One cheap brushed DC motor was monitored (vibration, current, voltage, temperature) until it failed.
 - `data/open_DC_motor-processing_data.xlsx` is the dataset's processing sheet: one row per raw HDF5
@@ -63,8 +63,8 @@ Mean absolute error of the RUL estimate on the 375 readings before failure:
 
 | Evaluation | Model | Predict the training mean |
 |---|---|---|
-| Blocked cross-validation (blocks of 30 readings, neighbours left out) | ~346 s | ~585 s |
-| Forward in time (train on first 75 %, test on last 25 %) | ~796 s | ~1251 s |
+| Blocked cross-validation (blocks of 30 readings, neighbours left out) | ~332 s | ~585 s |
+| Forward in time (train on first 75 %, test on last 25 %) | ~783 s | ~1251 s |
 
 - The dataset contains **one motor run**. Everything is evaluated on that single run, so the RUL estimate is
   indicative only and says nothing about other motors.

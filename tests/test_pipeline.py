@@ -24,6 +24,14 @@ def test_dataset_shape_and_failure_label():
     assert set(df["regime"]) == {"3V", "5V"}
 
 
+def test_regime_follows_phase_not_voltage():
+    df = ingest.load_dataset()
+    assert (df["regime"] == np.where(df["phase"].str.contains("5V"), "5V", "3V")).all()
+    # the reading where the motor stopped at the end of phase 02 has ~0 V but is still a 5 V reading
+    stopped = df[(df["phase"] == "02-Change 5V") & (df["voltage"] < ingest.FAILED_VOLTAGE)]
+    assert len(stopped) >= 1 and (stopped["regime"] == "5V").all()
+
+
 def test_build_populates_everything(built):
     path, result = built
     assert result["readings_ingested"] == 377
