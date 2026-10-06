@@ -1,15 +1,17 @@
 import streamlit as st
 
-def render_kpi_header(df_preds):
-    """Renders top-level summary metrics across all assets."""
-    total_assets = len(df_preds)
-    critical_count = len(df_preds[df_preds["status"] == "Critical"])
-    warning_count = len(df_preds[df_preds["status"] == "Warning"])
-    avg_rul = round(df_preds["rul_days"].mean(), 1)
+from data_source import format_duration
 
-    c1, c2, c3, c4 = st.columns(4)
+STATUS_ICON = {"Healthy": "🟢", "Warning": "🟡", "Critical": "🔴", "Failed": "⚫"}
 
-    c1.metric("Total Monitored Assets", total_assets)
-    c2.metric("Critical Risk Assets", critical_count, delta="-1 this week" if critical_count > 0 else "0", delta_color="inverse")
-    c3.metric("Warning State Assets", warning_count)
-    c4.metric("Avg Fleet RUL", f"{avg_rul} Days")
+
+def render_kpi_header(current):
+    """Top-level metrics for the reading currently shown in the replay."""
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Status", f"{STATUS_ICON.get(current['status'], '')} {current['status']}")
+    c2.metric("Health index", f"{current['health_score']:.0f} / 100")
+    c3.metric("Estimated RUL", format_duration(current["rul_pred_s"]),
+              help="Model estimate of the time until failure (cross-validated, indicative only).")
+    c4.metric("Actual time to failure", format_duration(current["rul_true_s"]),
+              help="Known from the recorded run. Shown only to compare against the estimate.")
+    c5.metric("Motor temperature", f"{current['temp_motor']:.1f} °C")
