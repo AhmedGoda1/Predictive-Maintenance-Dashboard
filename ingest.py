@@ -57,9 +57,12 @@ def load_dataset(workbook: Path = WORKBOOK, phase_map: Path = PHASE_MAP) -> pd.D
         failed[i] = True
     df["is_failed"] = failed.astype(int)
 
-    # Supply regime; rows after failure inherit the last known regime.
-    df["regime"] = np.where(df["voltage"] > OVERSTRESS_VOLTAGE, "5V", "3V")
-    df.loc[failed, "regime"] = df.loc[~failed, "regime"].iloc[-1]
+    # Supply regime comes from the phase (folder name), not from the measured voltage:
+    # the voltage reads ~0 when the motor stops, which would mislabel those readings as 3 V.
+    # The voltage is only the fallback when a recording has no phase.
+    by_voltage = np.where(df["voltage"] > OVERSTRESS_VOLTAGE, "5V", "3V")
+    df["regime"] = np.where(df["phase"].isna(), by_voltage,
+                            np.where(df["phase"].str.contains("5V", na=False), "5V", "3V"))
 
     if failed.any():
         failure_time = df.loc[failed, "timestamp"].iloc[0]
