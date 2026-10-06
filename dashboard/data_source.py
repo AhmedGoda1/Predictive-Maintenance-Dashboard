@@ -117,7 +117,9 @@ def snapshot(fleet: Fleet, fraction: float = 1.0) -> pd.DataFrame:
         type_id = names.loc[asset_id, "type_id"]
         return {"asset_id": asset_id, "name": names.loc[asset_id, "name"], "type_id": type_id,
                 "type_name": registry.get_type(type_id).name,
-                "live": bool(names.loc[asset_id, "metadata"].get("live", False))}
+                # recorded demo assets were loaded from a dataset (their metadata names the split); anything
+                # else arrived through ingestion
+                "live": bool(names.loc[asset_id, "metadata"].get("live", "split" not in names.loc[asset_id, "metadata"]))}
 
     for asset_id, h in fleet.health.groupby("asset_id", sort=True):
         h = h.sort_values("age").reset_index(drop=True)

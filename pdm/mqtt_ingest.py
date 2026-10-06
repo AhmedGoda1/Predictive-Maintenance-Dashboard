@@ -85,6 +85,18 @@ class MqttConfig:
         )
 
 
+def config_from_options(host=None, port=None, username=None, password=None, tls=False, env=None) -> Optional[MqttConfig]:
+    """Broker settings from command-line style options; anything not given comes from the PDM_MQTT_* variables."""
+    env = dict(os.environ if env is None else env)
+    for value, var in [(host, "PDM_MQTT_HOST"), (port, "PDM_MQTT_PORT"), (username, "PDM_MQTT_USERNAME"),
+                       (password, "PDM_MQTT_PASSWORD")]:
+        if value:
+            env[var] = str(value)
+    if tls:
+        env["PDM_MQTT_TLS"] = "true"
+    return MqttConfig.from_env(env)
+
+
 def new_client(cfg: MqttConfig, client_id: str = None, persistent: bool = False, manual_ack: bool = False):
     """A paho client set up with the credentials and TLS of the config (not yet connected)."""
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id or cfg.client_id,

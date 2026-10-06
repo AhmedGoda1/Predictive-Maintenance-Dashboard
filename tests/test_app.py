@@ -151,7 +151,7 @@ def _wait_until(at, condition, timeout=40):
 def test_without_a_broker_the_panel_says_so_and_the_demo_feed_still_works(live_app):
     at = AppTest.from_file(APP, default_timeout=120).run()
     assert not at.exception
-    assert any("No MQTT broker configured" in c.value for c in at.sidebar.caption)
+    assert any("does not run its own MQTT subscriber" in c.value for c in at.sidebar.caption)
     at.slider(key="feed_engines").set_value(1)
     at.sidebar.select_slider(key="feed_speed").set_value(0.25)
     at.button(key="feed_start").click().run()

@@ -143,4 +143,9 @@ def test_fleet_snapshot_lists_learning_assets_last(live_db, monkeypatch):
     assert list(snap["asset_id"]) == ["E1", "NEW"] and list(snap["status"]) == ["Healthy", "Learning"]
     new = snap.set_index("asset_id").loc["NEW"]
     assert new["live"] and new["n_readings"] == 5 and "5/20" in new["method"]
-    assert snap.set_index("asset_id").loc["E1", "live"] == False  # noqa: E712
+    assert snap.set_index("asset_id").loc["E1", "live"]            # registered through ingestion, not loaded from a dataset
+
+
+def test_recorded_demo_assets_are_not_labelled_live(fleet):
+    snap = ds.snapshot(fleet, 1.0).set_index("asset_id")
+    assert not snap["live"].any()                                  # everything in the demo database was loaded from datasets

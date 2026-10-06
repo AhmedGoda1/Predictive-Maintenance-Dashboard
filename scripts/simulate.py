@@ -13,7 +13,6 @@ Examples
 Press Ctrl-C to stop. Open the dashboard in another terminal to watch the fleet change.
 """
 import argparse
-import os
 import sys
 import time
 from pathlib import Path
@@ -43,15 +42,7 @@ if __name__ == "__main__":
             db.init_db()
         sink, target = simulator.LocalSink(), str(db.DB_NAME)
     else:
-        env = dict(os.environ)
-        if args.host:
-            env["PDM_MQTT_HOST"] = args.host
-        for flag, var in [(args.port, "PDM_MQTT_PORT"), (args.username, "PDM_MQTT_USERNAME"), (args.password, "PDM_MQTT_PASSWORD")]:
-            if flag:
-                env[var] = str(flag)
-        if args.tls:
-            env["PDM_MQTT_TLS"] = "true"
-        cfg = mqtt_ingest.MqttConfig.from_env(env)
+        cfg = mqtt_ingest.config_from_options(args.host, args.port, args.username, args.password, args.tls)
         if cfg is None:
             sys.exit("No broker given: use --host or PDM_MQTT_HOST (or --direct for no MQTT).")
         sink, target = simulator.MqttSink(cfg), f"mqtt://{cfg.host}:{cfg.port}"

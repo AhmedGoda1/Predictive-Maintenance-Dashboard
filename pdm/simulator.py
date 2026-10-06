@@ -136,6 +136,8 @@ class MqttSink:
         if not info.is_published():
             raise TimeoutError(f"broker did not acknowledge the {kind} message of {asset_id}")
 
+    publish = _publish                     # publish(asset_id, kind, body): used by scripts that send their own data
+
     def register(self, feed: Feed, reset: bool = False) -> None:
         self._publish(feed.asset_id, "register", {"type_id": feed.run.type_id, "name": feed.name,
                                                   "source": feed.run.source, "metadata": {"live": True, "feed": "simulator"}})

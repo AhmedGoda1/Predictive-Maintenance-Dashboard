@@ -65,8 +65,12 @@ and the dashboard shows the result. No real equipment is connected in this proje
 publishes recorded runs as if the assets were being measured right now. Everything after the broker is the real
 path.
 
+**New to this? Follow the step-by-step tutorial: [docs/LIVE_DATA.md](docs/LIVE_DATA.md)** (broker, service, a CSV
+file, your own device, the hosted dashboard, troubleshooting). `scripts/publish_csv.py` sends a CSV log mapped to
+sensor channels; `examples/device_publisher.py` shows what a device does.
+
 ```bash
-mosquitto -c mosquitto.conf                                   # any MQTT broker (Mosquitto, EMQX, HiveMQ, ...)
+mosquitto -c examples/mosquitto.conf                          # any MQTT broker (Mosquitto, EMQX, HiveMQ, ...)
 PDM_MQTT_HOST=localhost python -m pdm.mqtt_ingest             # the ingestion service
 PDM_MQTT_HOST=localhost python scripts/simulate.py --engines 3 --motor     # simulated sensors
 streamlit run dashboard/app.py                                # watch the fleet change

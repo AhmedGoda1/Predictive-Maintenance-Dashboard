@@ -83,8 +83,9 @@ def live_panel():
     """Start / stop the simulated sensor feed and choose whether the page refreshes by itself."""
     with st.sidebar.expander("Live data (MQTT)", expanded=feed.running or live_feed.has_live_assets()):
         if ingestor is None:
-            st.caption("⚪ No MQTT broker configured (set PDM_MQTT_HOST). The demo feed below writes straight "
-                       "into the ingestion code instead of publishing to a broker.")
+            st.caption("⚪ This app does not run its own MQTT subscriber (PDM_MQTT_HOST is not set). Readings from a "
+                       "separately running ingestion service still appear, because they share the database. "
+                       "The demo feed below writes straight into the ingestion code.")
         else:
             info = ingestor.status()
             st.caption(f"{'🟢 connected to' if info['connected'] else '🔴 not connected to'} `{info['broker']}` · "
