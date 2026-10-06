@@ -84,3 +84,34 @@ def test_charts_build_for_every_type_and_view(built_db, monkeypatch):
         for ch in a.type.sensor_names:
             if a.data[ch].notna().any():
                 utils.plot_sensor(a.data, a.type, ch, xr)
+
+
+def test_app_survives_a_deployment_that_updates_modules_under_a_running_process(tmp_path):
+    """A running Streamlit process keeps old `pdm` modules in memory while dashboard/ is hot-reloaded.
+
+    Seen in production as: AttributeError: module 'pdm.db' has no attribute 'is_current'.
+    Runs in its own process because it replaces modules in sys.modules.
+    """
+    import os
+    import subprocess
+    import sys
+    script = f"""
+import sys
+import streamlit as st
+from streamlit.testing.v1 import AppTest
+
+at = AppTest.from_file({APP!r}, default_timeout=180).run()
+assert not at.exception, [e.value for e in at.exception]
+
+# the running process still holds an old pdm.db; the source files on disk have since changed
+del sys.modules["pdm.db"].is_current
+sys._dashboard_code_signature = "an older deployment"
+st.cache_data.clear()                                   # a new visitor
+at.run()
+assert not at.exception, [e.value for e in at.exception]
+assert {{m.label: m.value for m in at.metric}}["Assets monitored"] == "21"
+print("OK")
+"""
+    env = {**os.environ, "MAINTENANCE_DB": str(tmp_path / "maintenance.db")}
+    result = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True, text=True, timeout=300)
+    assert result.returncode == 0 and "OK" in result.stdout, result.stderr[-2000:]
