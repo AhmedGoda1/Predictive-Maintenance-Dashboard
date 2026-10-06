@@ -30,10 +30,22 @@ _DISPLAY_UNITS = {"s": (1 / 60, "min"), "cycle": (1.0, "cycles")}
 
 
 def ensure_db() -> None:
-    """Builds the database from the committed datasets when it does not exist yet
-    (e.g. on a fresh deployment, since maintenance.db is not committed)."""
-    if not db.DB_NAME.exists():
-        pipeline.build()
+    """Builds the database from the committed datasets unless a current one exists.
+
+    A file left by an older version of the app (different schema) or by an interrupted build is
+    replaced. A lock keeps two simultaneous sessions from building at the same time.
+    """
+    if db.is_current():
+        return
+    lock_path = db.DB_NAME.with_name(db.DB_NAME.name + ".lock")
+    with open(lock_path, "w") as lock:
+        try:
+            import fcntl
+            fcntl.flock(lock, fcntl.LOCK_EX)     # another session may be building: wait, then re-check
+        except ImportError:                      # no flock on this platform: build without the lock
+            pass
+        if not db.is_current():
+            pipeline.build()
 
 
 # ---------------------------------------------------------------- units

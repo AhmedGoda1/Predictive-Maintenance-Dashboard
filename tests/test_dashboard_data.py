@@ -76,3 +76,40 @@ def test_models_table_lists_both_models(fleet):
     assert set(table.index) == {"motor_single_run", "turbofan_FD001"}
     assert table.loc["turbofan_FD001", "Interval coverage"] == "0.80"
     assert table.loc["motor_single_run", "Test RMSE"] == "n/a"             # nothing to evaluate on held-out assets
+
+
+def test_stale_database_from_an_older_version_is_rebuilt(tmp_path, monkeypatch):
+    """A deployed app keeps its database file across code updates; an old-schema file must be replaced."""
+    import sqlite3
+    path = tmp_path / "maintenance.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE machines (machine_id TEXT PRIMARY KEY, name TEXT)")
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(db, "DB_NAME", path)
+    calls = []
+
+    def fake_build(db_path=None, **kwargs):
+        calls.append(1)
+        db.init_db(reset=True)
+        db.upsert_asset("A1", "brushed_dc_motor", "x")
+        db.mark_current()
+
+    monkeypatch.setattr(ds.pipeline, "build", fake_build)
+    ds.ensure_db()
+    assert calls == [1] and db.is_current()
+    ds.ensure_db()                                          # a current database is left alone
+    assert calls == [1]
+
+
+def test_load_fleet_recovers_from_a_stale_database(tmp_path, monkeypatch):
+    """The reported failure: 'no such table: assets' when the old database file was still there."""
+    import sqlite3
+    path = tmp_path / "maintenance.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE machines (machine_id TEXT PRIMARY KEY, name TEXT)")
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(db, "DB_NAME", path)
+    fleet = ds.load_fleet()
+    assert len(fleet.assets) == 21

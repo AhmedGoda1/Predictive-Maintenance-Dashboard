@@ -17,3 +17,6 @@ data/cmapss/*FD004*
 # trained models: only the FD001 demo model is committed; the rest is rebuilt with `python -m pdm.train`
 models/*.joblib
 !models/turbofan_FD001.joblib
+
+# lock file used while the dashboard builds the database
+*.db.lock

@@ -14,6 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 DB_NAME = Path(os.environ.get("MAINTENANCE_DB", ROOT / "maintenance.db"))
 SCHEMA_FILE = Path(__file__).with_name("schema.sql")
 
+# Bump when schema.sql changes incompatibly. A database file left behind by an older version (e.g. on a
+# deployed app, where the file outlives code updates) is then rebuilt instead of queried.
+SCHEMA_VERSION = 2
+
 HEALTH_COLUMNS = ["asset_id", "ts", "age", "drift", "health_score", "status", "top_driver",
                   "method", "rul_pred", "rul_low", "rul_high"]
 ALERT_COLUMNS = ["asset_id", "ts", "status_level", "detected_issue", "suggested_action"]
@@ -59,6 +63,26 @@ def init_db(db_path=None, reset: bool = False) -> None:
         conn.executescript(SCHEMA_FILE.read_text())
     for asset_type in registry.all_types():
         register_asset_type(asset_type, path)
+
+
+def mark_current(db_path=None) -> None:
+    """Stamps the database as complete and matching this version of the code (call after a build)."""
+    with connect(db_path) as conn:
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+
+def is_current(db_path=None) -> bool:
+    """True when the database file exists, was fully built by this schema version and has assets."""
+    path = Path(db_path or DB_NAME)
+    if not path.exists():
+        return False
+    try:
+        with connect(path) as conn:
+            if conn.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+                return False
+            return conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0] > 0
+    except sqlite3.DatabaseError:
+        return False
 
 
 def register_asset_type(t: registry.AssetType, db_path=None) -> None:
