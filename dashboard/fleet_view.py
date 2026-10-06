@@ -39,6 +39,7 @@ def _priority_table(snap: pd.DataFrame):
     view = pd.DataFrame({
         "Status": snap["status"].map(utils.status_label),
         "Asset": snap["asset_id"],
+        "Source": snap["live"].map({True: "live feed", False: "recorded"}),
         "Type": snap["type_name"],
         "Health index": snap["health_score"],
         "Estimated RUL (80% range)": snap.apply(_rul_text, axis=1),
@@ -56,8 +57,8 @@ def _priority_table(snap: pd.DataFrame):
             "Open alerts": st.column_config.NumberColumn("Open alerts", format="%d"),
         },
     )
-    st.caption("Select a row to open the asset. Actual remaining life is known only because these are recorded "
-               "test runs; a live asset would not have it.")
+    st.caption("Select a row to open the asset. Actual remaining life is known only for recorded test runs; "
+               "a live asset does not have it. An asset is scored once it has enough readings to learn its healthy baseline.")
 
 
 def _rul_charts(snap: pd.DataFrame, show_actual: bool):
@@ -147,6 +148,9 @@ def render(fleet: ds.Fleet):
         snap = snap[snap["type_id"] == choice].reset_index(drop=True)
 
     components.render_fleet_kpis(ds.status_counts(snap), len(snap))
+    learning = int((snap["status"] == "Learning").sum())
+    if learning:
+        st.caption(f"⚪ {learning} asset(s) still learning their healthy baseline are not counted in the statuses above.")
     st.markdown("---")
 
     tab_status, tab_alerts, tab_models = st.tabs(["📋 Maintenance priority", "🚨 Open alerts", "🧠 Models & data"])

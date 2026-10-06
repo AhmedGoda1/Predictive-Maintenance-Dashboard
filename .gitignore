@@ -20,3 +20,7 @@ models/*.joblib
 
 # lock file used while the dashboard builds the database
 *.db.lock
+
+# SQLite write-ahead log files
+*.db-wal
+*.db-shm

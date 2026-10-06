@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS readings (
     FOREIGN KEY (asset_id) REFERENCES assets (asset_id)
 );
 CREATE INDEX IF NOT EXISTS idx_readings_asset_age ON readings (asset_id, age);
+-- one reading per asset and time: two writers racing on the same reading cannot both store it
+CREATE UNIQUE INDEX IF NOT EXISTS idx_readings_asset_ts ON readings (asset_id, ts);
 
 -- Long format: new sensors need no schema change
 CREATE TABLE IF NOT EXISTS measurements (

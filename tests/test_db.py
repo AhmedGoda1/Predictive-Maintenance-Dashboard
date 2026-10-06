@@ -137,3 +137,21 @@ def test_unreadable_file_is_not_current(tmp_path):
     junk = tmp_path / "junk.db"
     junk.write_bytes(b"this is not a sqlite database" * 20)
     assert not db.is_current(junk)
+
+
+def test_database_allows_one_reading_per_asset_and_time(path):
+    import sqlite3
+    db.insert_series("A1", _series(3), path)
+    with pytest.raises(sqlite3.IntegrityError):
+        db.append_readings("A1", _series(1), path)               # same time as the first stored reading
+    assert len(db.get_series("A1", path)) == 3                    # the failed insert left nothing behind
+
+
+def test_an_empty_database_that_was_stamped_is_current_but_has_no_assets(tmp_path):
+    p = tmp_path / "empty.db"
+    db.init_db(p)
+    assert not db.is_current(p)
+    db.mark_current(p)
+    assert db.is_current(p) and not db.has_assets(p)
+    db.upsert_asset("A1", "brushed_dc_motor", "x", db_path=p)
+    assert db.has_assets(p)

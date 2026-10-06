@@ -42,7 +42,7 @@ class Run:
 def store(run: Run, db_path=None) -> int:
     """Writes a run (asset, readings, failure, segments) to the database."""
     db.upsert_asset(run.asset_id, run.type_id, run.name, source=run.source,
-                    metadata={"split": run.split, **run.metadata}, db_path=db_path)
+                    metadata={**run.metadata, "recorded": True, "split": run.split}, db_path=db_path)
     n = db.insert_series(run.asset_id, run.series, db_path)
     if run.failure_age is not None:
         ages = run.series["age"].to_numpy()

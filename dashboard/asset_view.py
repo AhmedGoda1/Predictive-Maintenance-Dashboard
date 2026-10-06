@@ -18,9 +18,13 @@ SOURCES = {
 
 def _replay_controls(asset_id: str, n: int):
     """Play / pause / reset and a position slider in the sidebar. Returns the current position (1..n)."""
-    pos_key, play_key = f"pos_{asset_id}", f"playing_{asset_id}"
+    pos_key, play_key, n_key = f"pos_{asset_id}", f"playing_{asset_id}", f"n_{asset_id}"
     st.session_state.setdefault(pos_key, n)
     st.session_state.setdefault(play_key, False)
+    previous_n = st.session_state.get(n_key)
+    if previous_n is not None and n > previous_n and st.session_state[pos_key] >= previous_n:
+        st.session_state[pos_key] = n                  # a live asset grew while the view was at its end: keep following it
+    st.session_state[n_key] = n
     play_col, reset_col = st.sidebar.columns(2)
     if play_col.button("⏸ Pause" if st.session_state[play_key] else "▶ Play", width="stretch", key=f"play_btn_{asset_id}"):
         st.session_state[play_key] = not st.session_state[play_key]
@@ -96,10 +100,28 @@ def _model_tab(a: ds.AssetData):
     st.markdown(source)
 
 
+def _not_scored_yet(a: ds.AssetData):
+    """Page of an asset that has no health scores: no readings yet, or still learning its baseline."""
+    t, data, n = a.type, a.data, len(a.data)
+    st.title(a.asset["name"])
+    st.caption(f"{t.name} · `{a.asset['asset_id']}`" + (" · live feed" if a.asset["metadata"].get("live") else ""))
+    if n == 0:
+        st.info("No readings have arrived for this asset yet.")
+        return
+    st.info(f"⚪ Learning the healthy baseline: {n} of {t.baseline_readings} readings received. "
+            "Health, status and remaining life appear once there are enough readings to compare against.")
+    st.progress(min(n / t.baseline_readings, 1.0))
+    cols = ["age", *[c for c in t.condition_names if c in data], *[c for c in t.sensor_names if c in data][:6]]
+    st.dataframe(data[["ts", *cols]].tail(10).iloc[::-1], hide_index=True, width="stretch")
+
+
 def render(a: ds.AssetData):
     t, data = a.type, a.data
     n = len(data)
     asset_id = a.asset["asset_id"]
+    if n == 0 or data["health_score"].isna().all():
+        _not_scored_yet(a)
+        return
     pos, playing = _replay_controls(asset_id, n)
     seen = data.iloc[:pos]
     current = seen.iloc[-1]
@@ -107,7 +129,8 @@ def render(a: ds.AssetData):
     _, unit = ds.unit_factor(t.type_id)
 
     st.title(a.asset["name"])
-    st.caption(f"{t.name} · `{asset_id}` · estimate produced by: **{a.method}** · "
+    st.caption(f"{t.name} · `{asset_id}`" + (" · **live feed**" if a.asset["metadata"].get("live") else "") +
+               f" · estimate produced by: **{a.method}** · "
                f"reading {pos} of {n} at age {current['age_disp']:.0f} {unit}"
                + (f" · {t.stress_label}" if t.stress_channel and current.get(t.stress_channel, 0) > t.stress_above else ""))
     components.render_kpi_row(current, t.type_id, a.method)

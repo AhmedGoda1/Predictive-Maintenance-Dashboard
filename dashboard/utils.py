@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import data_source as ds
 
 STATUS_COLORS = {"Healthy": "#0ca30c", "Warning": "#fab219", "Critical": "#d03b3b", "Failed": "#7d7c78"}
-STATUS_ICONS = {"Healthy": "🟢", "Warning": "🟡", "Critical": "🔴", "Failed": "⚫"}
+STATUS_ICONS = {"Healthy": "🟢", "Warning": "🟡", "Critical": "🔴", "Failed": "⚫", "Learning": "⚪"}
 STATUS_SYMBOLS = {"Healthy": "circle", "Warning": "diamond", "Critical": "square", "Failed": "x"}
 SERIES = "#2a78d6"            # categorical slot 1: the one data series
 NEUTRAL = "#8a8985"           # reference / ground-truth marks
@@ -42,8 +42,9 @@ def _style(fig, title, height=330, legend=True):
 def plot_fleet_health(snap):
     """Health index of every asset, worst first. Comparable across asset types (0-100, no unit)."""
     fig = go.Figure()
+    snap = snap[snap["status"].isin(STATUS_COLORS)]            # assets still learning their baseline have no score yet
     order = list(snap["asset_id"])
-    for status in ds.STATUS_RANK:
+    for status in STATUS_COLORS:
         part = snap[snap["status"] == status]
         if part.empty:
             continue
@@ -68,7 +69,7 @@ def plot_fleet_rul(snap, type_id: str, show_actual: bool = True):
     part = snap[(snap["type_id"] == type_id) & snap["rul_pred"].notna()].sort_values("rul_pred")
     factor, unit = ds.unit_factor(type_id)
     fig = go.Figure()
-    for status in ds.STATUS_RANK:
+    for status in STATUS_COLORS:
         s = part[part["status"] == status]
         if s.empty:
             continue
