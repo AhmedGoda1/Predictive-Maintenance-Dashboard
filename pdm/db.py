@@ -160,6 +160,11 @@ def get_failure(asset_id: str, db_path=None):
     return None if df.empty else df.iloc[0].to_dict()
 
 
+def get_failures(db_path=None) -> pd.DataFrame:
+    """The failure events of all assets."""
+    return _read("SELECT * FROM failure_events ORDER BY asset_id", db_path=db_path)
+
+
 def set_segments(asset_id: str, segments: pd.DataFrame, db_path=None) -> None:
     """segments: columns name, start_ts, end_ts."""
     with connect(db_path) as conn:
@@ -191,7 +196,10 @@ def save_health(df: pd.DataFrame, db_path=None) -> int:
     return len(out)
 
 
-def get_health(asset_id: str, db_path=None) -> pd.DataFrame:
+def get_health(asset_id: str = None, db_path=None) -> pd.DataFrame:
+    """Health scores of one asset, or of every asset when asset_id is None."""
+    if asset_id is None:
+        return _read("SELECT * FROM health_scores ORDER BY asset_id, age", db_path=db_path)
     return _read("SELECT * FROM health_scores WHERE asset_id = ? ORDER BY age", (asset_id,), db_path)
 
 

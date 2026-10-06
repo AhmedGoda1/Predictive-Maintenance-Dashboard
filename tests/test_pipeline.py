@@ -3,18 +3,17 @@ import pytest
 from pdm import db, health, pipeline
 
 
-@pytest.fixture(scope="module")
-def built(tmp_path_factory):
-    path = tmp_path_factory.mktemp("db") / "pipeline.db"
-    return path, pipeline.build(path)
+@pytest.fixture
+def built(built_db):
+    return built_db, None
 
 
 def test_both_asset_types_loaded(built):
-    path, result = built
-    assert result["motor"]["readings"] == 377
+    path, _ = built
+    assert len(db.get_series("MTR_01", path)) == 377
     assets = db.list_assets(db_path=path)
     assert set(assets["type_id"]) == {"brushed_dc_motor", "turbofan_engine"}
-    assert result["fleet"]["engines"] == pipeline.FLEET_SIZE
+    assert len(db.list_assets("turbofan_engine", path)) == pipeline.FLEET_SIZE
 
 
 def test_motor_health_degrades_and_ends_failed(built):
@@ -67,3 +66,8 @@ def test_debounce_ignores_single_blip():
     assert set(health._debounce(raw)) == {"Healthy"}
     assert health._debounce(["Healthy"] * 3 + ["Critical"] * 4)[-1] == "Critical"
     assert health._debounce(["Healthy", "Healthy", "Failed"])[-1] == "Failed"
+
+
+def test_first_reading_noise_does_not_set_the_status():
+    assert health._debounce(["Warning", "Healthy", "Healthy", "Healthy"]) == ["Healthy"] * 4
+    assert health._debounce(["Warning"] * 3)[-1] == "Warning" and health._debounce(["Warning"] * 3)[0] == "Healthy"
