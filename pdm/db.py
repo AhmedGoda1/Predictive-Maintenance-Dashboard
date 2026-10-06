@@ -16,7 +16,7 @@ SCHEMA_FILE = Path(__file__).with_name("schema.sql")
 
 # Bump when schema.sql changes incompatibly. A database file left behind by an older version (e.g. on a
 # deployed app, where the file outlives code updates) is then rebuilt instead of queried.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 HEALTH_COLUMNS = ["asset_id", "ts", "age", "drift", "health_score", "status", "top_driver",
                   "method", "rul_pred", "rul_low", "rul_high"]
@@ -73,14 +73,20 @@ def mark_current(db_path=None) -> None:
 
 
 def is_current(db_path=None) -> bool:
-    """True when the database file exists, was fully built by this schema version and has assets."""
+    """True when the database file exists and was fully built by this schema version (it may still be empty)."""
     path = Path(db_path or DB_NAME)
     if not path.exists():
         return False
     try:
         with connect(path) as conn:
-            if conn.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
-                return False
+            return conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    except sqlite3.DatabaseError:
+        return False
+
+
+def has_assets(db_path=None) -> bool:
+    try:
+        with connect(db_path) as conn:
             return conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0] > 0
     except sqlite3.DatabaseError:
         return False

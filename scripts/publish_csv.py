@@ -11,6 +11,9 @@ Example: a motor log with columns  time, temp_c, vib_g, supply_v
   --now        shift the times in the file so that its last reading is at the current time (replays an old log as if it
                had just been measured; the spacing between readings is kept)
   --interval   seconds to wait between batches, to feed the dashboard gradually (default 0: as fast as possible)
+  Times without a time zone in the file are taken as UTC.
+  Exit codes: 0 stored and scored; 1 the service refused part of the data; 2 bad input or no broker; 3 no (or too few)
+  answers from the ingestion service.
   --age-column column with the age of the asset (required for types measured in cycles, e.g. turbofan_engine)
 Broker settings come from the options or the PDM_MQTT_* environment variables.
 """
@@ -52,6 +55,8 @@ def build_readings(df: pd.DataFrame, type_id: str, ts_column: str, mapping: dict
         raise ValueError("map at least one column to a channel with --map column=channel")
     if t.age_unit != "s" and not age_column:
         raise ValueError(f"{type_id} is measured in {t.age_unit}s: give --age-column")
+    if df.empty:
+        raise ValueError("the file has no data rows")
     consts = {k: float(v) for k, v in (consts or {}).items()}
 
     ts = pd.to_datetime(df[ts_column], errors="coerce", utc=True)
@@ -68,7 +73,10 @@ def build_readings(df: pd.DataFrame, type_id: str, ts_column: str, mapping: dict
                 values[channel] = float(v)
         reading = {"ts": ts.iloc[i].isoformat(), "values": values}
         if age_column:
-            reading["age"] = float(row[age_column])
+            age = pd.to_numeric(row[age_column], errors="coerce")
+            if pd.isna(age) or not np.isfinite(age):
+                raise ValueError(f"row {i + 2}: {age_column!r} is not a number")
+            reading["age"] = float(age)
         readings.append(reading)
     return readings
 
@@ -87,6 +95,7 @@ def main(argv=None) -> int:
     ap.add_argument("--const", action="append", metavar="CHANNEL=VALUE", help="a fixed value sent with every reading, e.g. voltage_regime=3")
     ap.add_argument("--now", action="store_true", help="shift the times so the last reading is at the current time")
     ap.add_argument("--batch", type=int, default=50, help="readings per message (default 50)")
+    ap.add_argument("--reply-timeout", type=float, default=15.0, help="seconds to wait for the service's answers (default 15)")
     ap.add_argument("--interval", type=float, default=0.0, help="seconds between messages (default 0)")
     ap.add_argument("--no-register", action="store_true", help="do not send the register message (asset already exists)")
     ap.add_argument("--dry-run", action="store_true", help="check the file and the mapping, publish nothing")
@@ -104,6 +113,8 @@ def main(argv=None) -> int:
         for c in t.channels:
             print(f"  {c.name:<18} {c.kind:<10} {c.unit:<8} {c.description}")
         return 0
+    if args.batch < 1:
+        ap.error("--batch must be at least 1")
     for needed in ("csv", "asset", "type_id", "ts_column"):
         if not getattr(args, needed):
             ap.error(f"{needed.replace('_', '-')} is required (or use --list-channels TYPE)")
@@ -129,23 +140,38 @@ def main(argv=None) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 1
     try:
+        before = sink.replies[args.asset]                  # answers heard so far; the ones to this upload come after
+        messages = 0
         if not args.no_register:
             meta = {"type_id": args.type_id, "name": args.name or args.asset, "site": args.site, "metadata": {"live": True}}
             sink.publish(args.asset, "register", {k: v for k, v in meta.items() if v is not None})
+            messages += 1
         for i in range(0, len(readings), args.batch):
             sink.publish(args.asset, "readings", {"readings": readings[i:i + args.batch]})
+            messages += 1
             print(f"sent {min(i + args.batch, len(readings))}/{len(readings)}", flush=True)
             if args.interval and i + args.batch < len(readings):
                 time.sleep(args.interval)
-        time.sleep(1.0)                                   # let the service answer before we look at its refusals
+        # The broker has the messages. Now find out what the ingestion service made of them.
+        heard = sink.wait_for_replies(args.asset, messages, since=before, timeout=args.reply_timeout)
         if sink.rejections:
             print("the service refused part of the data:")
             for t, payload in list(sink.rejections)[-5:]:
                 print(f"  {t}: {payload}")
             return 1
+        if heard == 0:
+            print(f"warning: the broker accepted the data but the ingestion service did not answer within "
+                  f"{args.reply_timeout:g} s. Is it running (python -m pdm.mqtt_ingest)? A service that is not "
+                  f"connected, and has no saved session on the broker, never sees these messages.", file=sys.stderr)
+            return 3
+        if heard < messages:
+            print(f"warning: only {heard} of {messages} messages were answered within {args.reply_timeout:g} s; "
+                  f"the service may still be working through them.", file=sys.stderr)
+            return 3
     finally:
         sink.close()
-    print("done. Open the dashboard: the asset appears once it has 20 readings (until then it is 'Learning').")
+    print("done: the ingestion service has stored and scored the data. Open the dashboard: the asset is scored once "
+          "it has 20 readings (until then it is 'Learning').")
     return 0
 
 

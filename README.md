@@ -131,7 +131,9 @@ topic read  pdm/v1/assets/press4/rejected
 
 Client settings come from environment variables: `PDM_MQTT_HOST`, `PDM_MQTT_PORT` (default 1883), `PDM_MQTT_USERNAME`,
 `PDM_MQTT_PASSWORD`, `PDM_MQTT_TLS` (default on for port 8883), `PDM_MQTT_CA_CERTS`, `PDM_MQTT_CLIENT_ID`.
-Use one subscriber per client id: two with the same id take the broker session from each other.
+Use one subscriber per client id: two with the same id take the broker session from each other. Two subscribers with
+different ids (e.g. a standalone service and an app that runs its own) both receive every message; that is safe, because
+the database keeps one reading per asset and time, but it doubles the work.
 
 **The hosted dashboard.** Streamlit Cloud can only run the dashboard, so when `PDM_MQTT_HOST` (and the other
 variables, as app secrets) point at a broker the app reaches, it runs the ingestion subscriber itself, and its

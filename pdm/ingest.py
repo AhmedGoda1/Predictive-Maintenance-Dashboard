@@ -17,6 +17,7 @@ After storing, the asset is re-scored from its full history with the same code a
 health index and status, the learned RUL model when one is registered for the type, and alerts.
 """
 import math
+import sqlite3
 import threading
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -28,6 +29,7 @@ from . import db, health, registry
 from .rul import RulModel
 
 MAX_BATCH = 1000
+RESERVED_METADATA = {"recorded", "split"}     # set by the dataset loaders only; a device must not be able to claim them
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -93,6 +95,7 @@ def register_asset(asset_id: str, type_id: str, name: str = None, site: str = No
         if existing["type_id"] != type_id:
             raise Conflict(f"asset {asset_id!r} already exists with type {existing['type_id']!r}")
         return existing
+    metadata = {k: v for k, v in (metadata or {}).items() if k not in RESERVED_METADATA}
     db.upsert_asset(asset_id, type_id, name or asset_id, site, source, metadata, db_path)
     return db.get_asset(asset_id, db_path)
 
@@ -154,7 +157,20 @@ def ingest_readings(asset_id: str, readings: list, db_path=None, score: bool = T
 
     Valid readings are kept even if others in the batch are rejected; the result lists what happened to
     each one. Raises IngestError / NotFound only when the request as a whole cannot be processed.
+
+    Several processes may ingest the same asset (e.g. two subscribers on one broker). The database allows
+    one reading per asset and time, so if another writer stored one of ours between our check and our
+    insert, the insert fails as a whole and we check again, which then sees it as a duplicate.
     """
+    for attempt in (1, 2, 3):
+        try:
+            return _ingest_once(asset_id, readings, db_path, score)
+        except sqlite3.IntegrityError:
+            if attempt == 3:
+                raise
+
+
+def _ingest_once(asset_id: str, readings: list, db_path, score: bool) -> IngestResult:
     if not isinstance(readings, list) or not readings:
         raise IngestError("readings must be a non-empty list")
     if len(readings) > MAX_BATCH:

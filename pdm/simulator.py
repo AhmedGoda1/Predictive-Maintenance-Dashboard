@@ -18,8 +18,9 @@ breakdown, its failure is reported at the end, as an operator would log it.
 import json
 import logging
 import threading
+import time
 import uuid
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -115,10 +116,12 @@ class MqttSink:
         from . import mqtt_ingest
         self.mq, self.timeout = mqtt_ingest, timeout
         self.rejections = deque(maxlen=50)
+        self.replies = Counter()                 # answers (state or rejected) heard from the service, per asset
+        self._last_reply = 0.0
         self._connected = threading.Event()
         self.client = mqtt_ingest.new_client(cfg, client_id=client_id or f"pdm-sim-{uuid.uuid4().hex[:8]}")
         self.client.on_connect = self._on_connect
-        self.client.on_message = lambda c, u, m: self.rejections.append((m.topic, m.payload.decode(errors="replace")[:300]))
+        self.client.on_message = self._on_message
         self.client.connect(cfg.host, cfg.port, cfg.keepalive)
         self.client.loop_start()
         if not self._connected.wait(timeout):
@@ -127,8 +130,32 @@ class MqttSink:
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         if not reason_code.is_failure:
-            client.subscribe(f"{self.mq.ROOT}/assets/+/rejected", qos=1)
+            client.subscribe([(f"{self.mq.ROOT}/assets/+/rejected", 1), (f"{self.mq.ROOT}/assets/+/state", 1)])
             self._connected.set()
+
+    def _on_message(self, client, userdata, msg):
+        if msg.retain:                          # the retained state delivered when we subscribed is old news
+            return
+        asset_id = msg.topic.split("/")[3]
+        if msg.topic.endswith("/rejected"):
+            self.rejections.append((msg.topic, msg.payload.decode(errors="replace")[:300]))
+        self.replies[asset_id] += 1
+        self._last_reply = time.monotonic()
+
+    def wait_for_replies(self, asset_id: str, expected: int, since: int = 0, timeout: float = 15.0, quiet: float = 0.5) -> int:
+        """Waits until the service has answered `expected` messages about the asset (each message gets at least one
+        answer) and has been quiet for `quiet` seconds, so that late refusals are not missed.
+
+        `since` is `replies[asset_id]` read BEFORE publishing; answers that arrive while publishing count too.
+        Returns the number of answers heard (less than `expected` if the service did not answer in time).
+        """
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            heard = self.replies[asset_id] - since
+            if heard >= expected and time.monotonic() - self._last_reply >= quiet:
+                return heard
+            time.sleep(0.05)
+        return self.replies[asset_id] - since
 
     def _publish(self, asset_id: str, kind: str, body: dict) -> None:
         info = self.client.publish(self.mq.topic(asset_id, kind), json.dumps(body), qos=1)
@@ -161,6 +188,7 @@ class LiveFeed:
         self.feeds, self.sink, self.interval_s, self.step, self.reset = feeds, sink, interval_s, max(1, step), reset
         self.sent = {f.asset_id: 0 for f in feeds}
         self._last_ts = {}                      # newest timestamp sent per asset: stamps must keep increasing
+        self._retry = {}                        # a batch whose send failed, to be sent again unchanged
         self.errors = 0
         self.last_error = ""
         self._stop = threading.Event()
@@ -211,15 +239,20 @@ class LiveFeed:
                     self._report_failure(f)
                     continue
                 pending = True
-                now = datetime.now(timezone.utc).replace(tzinfo=None)
-                if f.asset_id in self._last_ts:                # never start a batch before the previous one ended
-                    now = max(now, self._last_ts[f.asset_id] + timedelta(milliseconds=1))
-                batch = payload(f, i, self.step, now)
+                batch = self._retry.pop(f.asset_id, None)
+                if batch is None:
+                    now = datetime.now(timezone.utc).replace(tzinfo=None)
+                    if f.asset_id in self._last_ts:            # never start a batch before the previous one ended
+                        now = max(now, self._last_ts[f.asset_id] + timedelta(milliseconds=1))
+                    batch = payload(f, i, self.step, now)
                 try:
                     self.sink.send(f.asset_id, batch)
                     self.sent[f.asset_id] = i + len(batch)
-                    self._last_ts[f.asset_id] = now + timedelta(milliseconds=len(batch) - 1)
-                except Exception as e:                      # keep streaming the other assets; retry this one next tick
+                    self._last_ts[f.asset_id] = datetime.fromisoformat(batch[-1]["ts"])
+                except Exception as e:
+                    # The broker may have received it even though the acknowledgement was lost. Sending the very
+                    # same readings again (same timestamps) is safe: they arrive as duplicates, not as new data.
+                    self._retry[f.asset_id] = batch
                     self.errors += 1
                     self.last_error = f"{f.asset_id}: {e}"
                     log.warning(self.last_error)

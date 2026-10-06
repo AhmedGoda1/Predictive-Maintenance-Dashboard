@@ -121,3 +121,55 @@ def test_publishing_a_csv_through_a_real_broker(log, tmp_path, mqtt_broker, live
         assert len(db.get_series("press4", live_db)) == 30
     finally:
         service.stop()
+
+
+def test_a_file_without_data_rows_is_reported(log):
+    with pytest.raises(ValueError, match="no data rows"):
+        publish_csv.build_readings(log.iloc[0:0], "brushed_dc_motor", "time", {"temp_c": "temp_motor"})
+
+
+def test_a_bad_age_names_the_row():
+    df = pd.DataFrame({"t": pd.date_range("2024-01-01", periods=3, freq="h"), "cycle": [1, None, 3], "x": [1.0, 2.0, 3.0]})
+    with pytest.raises(ValueError, match="row 3"):                       # row 1 is the header
+        publish_csv.build_readings(df, "turbofan_engine", "t", {"x": "s2"}, age_column="cycle")
+
+
+def test_a_batch_size_below_one_is_refused_before_anything_is_sent(log, tmp_path):
+    path = tmp_path / "log.csv"
+    log.to_csv(path, index=False)
+    args = [str(path), "--asset", "a", "--type", "brushed_dc_motor", "--ts-column", "time", "--map", "temp_c=temp_motor"]
+    for bad in ("0", "-5"):
+        with pytest.raises(SystemExit) as e:
+            publish_csv.main([*args, "--batch", bad])
+        assert e.value.code == 2
+
+
+def _args(path, mq, extra=()):
+    return [str(path), "--asset", "press7", "--type", "brushed_dc_motor", "--ts-column", "time", "--map", "temp_c=temp_motor",
+            "--const", "voltage_regime=3", "--host", mq.host, "--port", str(mq.port), *extra]
+
+
+def test_the_script_tells_you_when_nobody_is_listening(log, tmp_path, mqtt_broker, capsys, monkeypatch):
+    """No ingestion service: the broker accepts the messages, but 'done' would be a lie."""
+    monkeypatch.delenv("PDM_MQTT_HOST", raising=False)
+    path = tmp_path / "log.csv"
+    log.to_csv(path, index=False)
+    assert publish_csv.main(_args(path, mqtt_broker, ["--reply-timeout", "2"])) == 3
+    assert "did not answer" in capsys.readouterr().err
+
+
+def test_a_late_refusal_is_not_missed_and_a_clean_upload_says_so(log, tmp_path, mqtt_broker, live_db, monkeypatch, capsys):
+    monkeypatch.delenv("PDM_MQTT_HOST", raising=False)
+    service = MqttIngestor(MqttConfig(mqtt_broker.host, mqtt_broker.port, client_id=f"csv-late-{time.time_ns()}"), live_db).start()
+    try:
+        path = tmp_path / "log.csv"
+        log.to_csv(path, index=False)
+        assert publish_csv.main(_args(path, mqtt_broker, ["--batch", "10"])) == 0
+        assert "stored and scored" in capsys.readouterr().out
+        later = log.copy()
+        later["time"] = pd.date_range("2023-01-01", periods=30, freq="5s")           # older than what is stored now
+        later.to_csv(path, index=False)
+        assert publish_csv.main(_args(path, mqtt_broker, ["--no-register", "--batch", "10"])) == 1
+        assert "refused" in capsys.readouterr().out
+    finally:
+        service.stop()

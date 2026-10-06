@@ -282,3 +282,26 @@ def test_the_simulator_sees_what_the_service_refuses(service, cfg):
 def test_an_unreachable_broker_is_an_error_not_a_hang():
     with pytest.raises((ConnectionError, OSError)):
         simulator.MqttSink(MqttConfig("127.0.0.1", 1), timeout=2)
+
+
+def test_two_services_on_one_broker_do_not_store_a_reading_twice(cfg, live_db, mqtt_broker):
+    """A dashboard that runs its own subscriber plus a standalone service, with different client ids: both receive
+    every message. Both write to the same database; each reading must end up there once."""
+    asset = f"TWO-{time.time_ns()}"        # its own asset: some brokers hand stale messages of earlier tests to new sessions
+    first = MqttIngestor(cfg, live_db).start()
+    second = MqttIngestor(MqttConfig(cfg.host, cfg.port, client_id=cfg.client_id + "-b"), live_db).start()
+    pub = publisher(cfg)
+    try:
+        assert first.connected.is_set() and second.connected.is_set()
+        send(pub, asset, "register", {"type_id": "turbofan_engine", "source": "NASA C-MAPSS FD001"})
+        rows, _ = engine_rows(n=60)
+        for i in range(0, 60, 10):
+            send(pub, asset, "readings", {"readings": rows[i:i + 10]})
+        assert wait_for(lambda: len(db.get_series(asset, live_db)) == 60)
+        time.sleep(1.5)                    # a late second copy would show up now
+        assert len(db.get_series(asset, live_db)) == 60
+        assert not first.last_error and not second.last_error
+    finally:
+        pub.loop_stop()
+        first.stop()
+        second.stop()

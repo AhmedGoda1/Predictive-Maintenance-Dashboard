@@ -101,3 +101,22 @@ def test_timestamps_keep_increasing_when_batches_follow_each_other_immediately(l
     sink.send = lambda a, r: (lambda out: (rejected.extend(out["rejected"]), out)[1])(original(a, r))
     simulator.LiveFeed(feeds, sink, interval_s=0, step=60).run()
     assert not rejected and len(db.get_series(feeds[0].asset_id, live_db)) == feeds[0].total
+
+
+def test_a_send_whose_acknowledgement_is_lost_is_retried_with_the_same_readings(live_db):
+    """The broker got the batch but the sender saw a timeout. The retry must not look like new data."""
+    sent = []
+
+    class LostAck(simulator.LocalSink):
+        def send(self, asset_id, readings):
+            sent.append([r["ts"] for r in readings])
+            out = super().send(asset_id, readings)
+            if len(sent) == 1:
+                raise TimeoutError("acknowledgement lost")
+            return out
+
+    feeds = simulator.build_feeds(1)
+    feed = simulator.LiveFeed(feeds, LostAck(live_db), interval_s=0, step=40)
+    run_to_end(feed)
+    assert feed.errors == 1 and sent[0] == sent[1]                             # the very same timestamps were sent again
+    assert len(db.get_series(feeds[0].asset_id, live_db)) == feeds[0].total    # and nothing was stored twice

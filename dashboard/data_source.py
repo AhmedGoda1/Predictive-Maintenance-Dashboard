@@ -30,12 +30,14 @@ _DISPLAY_UNITS = {"s": (1 / 60, "min"), "cycle": (1.0, "cycles")}
 
 
 def ensure_db() -> None:
-    """Builds the database from the committed datasets unless a current one exists.
+    """Makes sure a usable database exists.
 
-    A file left by an older version of the app (different schema) or by an interrupted build is
-    replaced. A lock keeps two simultaneous sessions from building at the same time.
+    * missing, left by an older version of the app, or an interrupted build: it is rebuilt from the datasets;
+    * current but empty (e.g. created by the MQTT ingestion service before anything arrived): the demo assets
+      are added to it in place. The file is never deleted, because another process may be writing to it.
+    A lock keeps two simultaneous sessions from building at the same time.
     """
-    if db.is_current():
+    if db.is_current() and db.has_assets():
         return
     lock_path = db.DB_NAME.with_name(db.DB_NAME.name + ".lock")
     with open(lock_path, "w") as lock:
@@ -46,6 +48,8 @@ def ensure_db() -> None:
             pass
         if not db.is_current():
             pipeline.build()
+        elif not db.has_assets():
+            pipeline.build(reset=False)
 
 
 # ---------------------------------------------------------------- units
@@ -101,6 +105,15 @@ def data_stamp() -> tuple:
     return db.data_stamp()
 
 
+def _is_live(meta: dict) -> bool:
+    """Recorded demo assets are marked by the dataset loaders; everything else arrived through ingestion.
+
+    Databases built before the explicit marker existed named the dataset split instead, so that still counts.
+    """
+    recorded = bool(meta.get("recorded", "split" in meta))
+    return bool(meta.get("live", not recorded))
+
+
 def snapshot(fleet: Fleet, fraction: float = 1.0) -> pd.DataFrame:
     """The state of every asset at `fraction` of its recorded life (1.0 = latest reading).
 
@@ -117,9 +130,7 @@ def snapshot(fleet: Fleet, fraction: float = 1.0) -> pd.DataFrame:
         type_id = names.loc[asset_id, "type_id"]
         return {"asset_id": asset_id, "name": names.loc[asset_id, "name"], "type_id": type_id,
                 "type_name": registry.get_type(type_id).name,
-                # recorded demo assets were loaded from a dataset (their metadata names the split); anything
-                # else arrived through ingestion
-                "live": bool(names.loc[asset_id, "metadata"].get("live", "split" not in names.loc[asset_id, "metadata"]))}
+                "live": _is_live(names.loc[asset_id, "metadata"])}
 
     for asset_id, h in fleet.health.groupby("asset_id", sort=True):
         h = h.sort_values("age").reset_index(drop=True)

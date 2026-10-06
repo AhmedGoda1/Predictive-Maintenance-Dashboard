@@ -132,6 +132,10 @@ PDM_MQTT_HOST=localhost python scripts/publish_csv.py examples/motor_log.csv \
 - `--now` shifts the times in the file so the last reading is *now*, which replays an old log as if it had just
   been measured. Leave it out to keep the times in the file.
 - `--dry-run` checks the file and the mapping and sends nothing. Try it first.
+- Times without a time zone in the file are taken as **UTC**. Add the offset (`2026-03-02 08:00:00+01:00`) if yours are local.
+- After sending, the script waits for the ingestion service to answer, so "done" means the data was stored and scored.
+  If the service is not running it says so (exit code 3) instead of pretending: the broker accepts messages even
+  when nobody is listening, and a service that is not connected and has no saved session never sees them.
 - A typo is caught before anything is sent: `error: not channels of brushed_dc_motor: temperature. Valid: ...`.
 - Without `--now`, running the same file twice is harmless: readings whose time is already stored are ignored as
   duplicates. With `--now` the times change on every run, so send such a file **once** per asset (the service

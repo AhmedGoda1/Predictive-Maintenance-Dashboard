@@ -96,9 +96,13 @@ def load_fleet(db_path=None, subset: str = FLEET_SUBSET, size: int = FLEET_SIZE,
     return {"engines": len(runs), "alerts": alerts, "model": str(path.name)}
 
 
-def build(db_path=None, fleet: bool = True, retrain: bool = False) -> dict:
-    """Rebuilds the whole database from the datasets."""
-    db.init_db(db_path, reset=True)
+def build(db_path=None, fleet: bool = True, retrain: bool = False, reset: bool = True) -> dict:
+    """Builds the database from the datasets.
+
+    reset=True starts from an empty file. reset=False adds the demo assets to the existing database without
+    deleting it, which is what a database that another process (an ingestion service) already uses needs.
+    """
+    db.init_db(db_path, reset=reset)
     result = {"motor": load_motor(db_path)}
     if fleet:
         result["fleet"] = load_fleet(db_path, retrain=retrain)

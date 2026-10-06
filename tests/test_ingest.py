@@ -198,3 +198,29 @@ def test_motor_without_a_learned_model_is_scored_on_health_only(live_db):
     assert r.accepted == 377 and r.state["rul"] is None and r.state["method"] is None
     assert r.state["status"] in ("Healthy", "Warning", "Critical")               # failure not reported yet
     assert ingest.report_failure("M1", rows[-2]["ts"], age=rows[-2]["age"], db_path=live_db)["status"] == "Failed"
+
+
+def test_two_writers_racing_on_the_same_reading_store_it_once(engine, monkeypatch):
+    """Another process stores a reading between our duplicate check and our insert: the database refuses the second
+    copy and the retry sees it as the duplicate it is."""
+    rows, _ = engine_rows(n=30)
+    ingest.ingest_readings("E1", rows, db_path=engine)
+    real_seen, real_last = db.existing_timestamps, db.get_last_reading
+    calls = {"n": 0}
+
+    def stale_seen(*a, **k):                      # what a writer that looked just before the other one stored sees
+        calls["n"] += 1
+        return set() if calls["n"] == 1 else real_seen(*a, **k)
+
+    monkeypatch.setattr(db, "existing_timestamps", stale_seen)
+    monkeypatch.setattr(db, "get_last_reading", lambda *a, **k: None if calls["n"] == 0 else real_last(*a, **k))
+    r = ingest.ingest_readings("E1", rows, db_path=engine)
+    assert calls["n"] == 2                        # it did try twice
+    assert (r.accepted, r.duplicates, r.rejected) == (0, 30, 0)
+    assert len(db.get_series("E1", engine)) == 30
+
+
+def test_a_device_cannot_claim_to_be_a_recorded_demo_asset(live_db):
+    asset = ingest.register_asset("sneaky", "turbofan_engine", metadata={"recorded": True, "split": "train", "live": True},
+                                  db_path=live_db)
+    assert asset["metadata"] == {"live": True}    # the reserved keys are dropped, other metadata is kept
