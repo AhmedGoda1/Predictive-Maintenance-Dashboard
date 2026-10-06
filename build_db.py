@@ -1,20 +1,13 @@
-"""Builds maintenance.db from the dataset: ingest readings, then run the analysis.
+"""Builds maintenance.db from the datasets: loads the assets, runs the analysis, stores the results.
 
-Usage: python build_db.py
+Usage: python build_db.py [--no-fleet] [--retrain]
 """
-import db_manager
-import health
-import ingest
+import sys
 
-
-def build(db_path=None) -> dict:
-    n = ingest.ingest(db_path)
-    result = health.analyze(ingest.MACHINE_ID, db_path)
-    result["readings_ingested"] = n
-    return result
-
+from pdm import db, pipeline
 
 if __name__ == "__main__":
-    for key, value in build().items():
-        print(f"{key}: {value:,.1f}" if isinstance(value, float) else f"{key}: {value}")
-    print(f"Database written to {db_manager.DB_NAME}")
+    result = pipeline.build(fleet="--no-fleet" not in sys.argv, retrain="--retrain" in sys.argv)
+    for part, info in result.items():
+        print(f"{part}: {info}")
+    print(f"Database written to {db.DB_NAME}")
