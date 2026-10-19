@@ -61,29 +61,11 @@ python -m pdm.train                     # optional: retrain / re-evaluate the RU
 ### Work orders to a maintenance service
 
 "Dispatch Work Order" on an alert sends a work order as JSON (HTTP POST) to the service named by
-`PDM_WORK_ORDER_URL`, e.g. a CMMS or ticketing API, Power Automate / Zapier / n8n, or an adapter in front of SAP PM or
-Maximo. `PDM_WORK_ORDER_TOKEN` (optional) is sent as `Authorization: Bearer ...`, `PDM_WORK_ORDER_TIMEOUT` defaults to
-10 s. On Streamlit Cloud, set them as app secrets. Every order is stored in the `work_orders` table with the outcome:
-a 2xx answer counts as sent and the button goes away; a failure is shown with the service's answer and the button
-offers to send it again. Without `PDM_WORK_ORDER_URL` the order is stored but not sent.
-
-```json
-{
-  "schema": "pdm.work_order.v1",
-  "work_order_id": "WO-MTR_01-5",
-  "created_at": "2026-10-19 10:13:38",
-  "priority": "high",
-  "requested_by": null,
-  "asset": {"asset_id": "MTR_01", "name": "...", "type": "brushed_dc_motor", "type_name": "...", "site": "..."},
-  "alert": {"alert_id": 5, "raised_at": "...", "level": "Critical", "detected_issue": "...", "suggested_action": "..."},
-  "condition": {"status": "Critical", "health_score": 12.3, "top_driver": "...", "age": 5400.0,
-                "rul_estimate": 600.0, "rul_low": 300.0, "rul_high": 900.0, "unit": "s"}
-}
-```
-
-Priority is `urgent` (Failed), `high` (Critical) or `medium` (Warning). The `Idempotency-Key` header carries the
-work order id, which stays the same when an order is sent again, so the service can drop duplicates. The condition
-is the asset's last health score at the time of the alert.
+`PDM_WORK_ORDER_URL`, e.g. a CMMS or ticketing API, or Power Automate / Zapier / n8n in front of one. The service
+confirms it (accepted, in progress, completed, rejected, cancelled) in its answer, over MQTT
+(`pdm/v1/work_orders/<id>/status`) or over HTTP (`python -m pdm.work_order_callback`), and the alert shows the
+latest status. Every order and its delivery are stored in the `work_orders` table.
+**Step-by-step setup, payload and confirmation format: [docs/WORK_ORDERS.md](docs/WORK_ORDERS.md).**
 
 ## Live ingestion (MQTT)
 
@@ -113,6 +95,8 @@ streamlit run dashboard/app.py                                # watch the fleet 
 | `pdm/v1/assets/<id>/state` | out, retained | the asset's current status, health index and RUL estimate, and the counts of the last message |
 | `pdm/v1/assets/<id>/rejected` | out | what was refused and why |
 | `pdm/v1/service/status` | out, retained | `online` / `offline` (the last will of the service) |
+| `pdm/v1/work_orders/<wo>/status` | in | a maintenance service confirming a work order, `{"status": "completed", "external_id": "...", "note": "..."}` (see [docs/WORK_ORDERS.md](docs/WORK_ORDERS.md)) |
+| `pdm/v1/work_orders/<wo>/rejected` | out | a refused confirmation and why |
 
 ```bash
 mosquitto_pub -t pdm/v1/assets/press4/register -q 1 -m '{"type_id": "brushed_dc_motor", "name": "Press 4 drive"}'

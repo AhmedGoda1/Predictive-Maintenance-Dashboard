@@ -115,6 +115,9 @@ def _not_scored_yet(a: ds.AssetData):
     st.dataframe(data[["ts", *cols]].tail(10).iloc[::-1], hide_index=True, width="stretch")
 
 
+STATUS_ICONS = {"accepted": "📥", "in_progress": "🔧", "completed": "✅", "rejected": "⛔", "cancelled": "🚫"}
+
+
 def _work_order_status(order: dict) -> None:
     """How the work order of an alert was delivered."""
     wo, code = order["work_order_id"], order["response_code"]
@@ -125,6 +128,14 @@ def _work_order_status(order: dict) -> None:
         st.error(f"Work order **{wo}** could not be delivered to {order['target']} ({detail}).")
     else:
         st.warning(f"Work order **{wo}** stored, but not sent: no maintenance service is configured.")
+    if pd.notna(order.get("status")):
+        icon = STATUS_ICONS.get(order["status"], "ℹ️")
+        ext = f" as **{order['external_id']}**" if pd.notna(order.get("external_id")) else ""
+        note = f": {order['status_note']}" if pd.notna(order.get("status_note")) else ""
+        st.info(f"{icon} Service reports **{order['status'].replace('_', ' ')}**{ext} "
+                f"({order['status_at']:%Y-%m-%d %H:%M} UTC){note}")
+    elif order["delivery"] == "sent":
+        st.caption("Waiting for the service to confirm.")
 
 
 def render(a: ds.AssetData):

@@ -373,7 +373,8 @@ def get_latest_alert(asset_id: str, db_path=None):
 
 # ---------------------------------------------------------------- work orders
 WORK_ORDER_COLUMNS = ["work_order_id", "alert_id", "asset_id", "created_at", "priority", "payload", "target",
-                      "delivery", "response_code", "response", "sent_at"]
+                      "delivery", "response_code", "response", "sent_at", "status", "external_id", "status_note",
+                      "status_at"]
 
 
 def save_work_order(order: dict, db_path=None) -> None:
@@ -391,7 +392,30 @@ def get_work_orders(asset_id: str = None, db_path=None) -> pd.DataFrame:
         _add_new_tables(conn)
     where, params = ("WHERE asset_id = ?", (asset_id,)) if asset_id else ("", ())
     return _read(f"SELECT * FROM work_orders {where} ORDER BY created_at DESC", params, db_path,
-                 dates=("created_at", "sent_at"))
+                 dates=("created_at", "sent_at", "status_at"))
+
+
+def get_work_order(work_order_id: str, db_path=None):
+    with connect(db_path) as conn:
+        _add_new_tables(conn)
+    df = _read("SELECT * FROM work_orders WHERE work_order_id = ?", (work_order_id,), db_path,
+               dates=("created_at", "sent_at", "status_at"))
+    return None if df.empty else df.iloc[0].to_dict()
+
+
+def set_work_order_status(work_order_id: str, status: str, status_at: str, external_id: str = None,
+                          note: str = None, db_path=None) -> bool:
+    """Records a status the service reported. Keeps a known external id and ignores a status older than the
+    stored one (messages can arrive out of order). Returns False when the work order does not exist."""
+    with connect(db_path) as conn:
+        _add_new_tables(conn)
+        if conn.execute("SELECT 1 FROM work_orders WHERE work_order_id = ?", (work_order_id,)).fetchone() is None:
+            return False
+        conn.execute("UPDATE work_orders SET status = ?, status_at = ?, status_note = ?, "
+                     "external_id = COALESCE(?, external_id) "
+                     "WHERE work_order_id = ? AND (status_at IS NULL OR status_at <= ?)",
+                     (status, status_at, note, external_id, work_order_id, status_at))
+    return True
 
 
 def get_alert(alert_id: int, db_path=None):
