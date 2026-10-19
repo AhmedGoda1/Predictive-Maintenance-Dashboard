@@ -62,20 +62,32 @@ class FeedController:
 
     def start(self, engines: int, motor: bool, interval_s: float, step: int) -> None:
         self.stop()
+        self._join()
         cfg = mqtt_config()
-        sink = simulator.MqttSink(cfg) if cfg else simulator.LocalSink()
         feeds = simulator.build_feeds(engines, motor)
+        if cfg:
+            # Over MQTT an asset cannot be deleted, so a restarted feed would re-send ages the database already
+            # has and every reading would be refused ("age must increase"). This app shares the database with the
+            # ingestion, so it starts the simulated assets over itself, as the in-process sink does.
+            for f in feeds:
+                if db.asset_exists(f.asset_id):
+                    db.delete_asset(f.asset_id)
+        sink = simulator.MqttSink(cfg) if cfg else simulator.LocalSink()
         self.feed = simulator.LiveFeed(feeds, sink, interval_s, step, reset=True).start()
 
     def stop(self) -> None:
         if self.feed is not None:
             self.feed.stop()
 
+    def _join(self) -> None:
+        """Waits for a stopped feed's thread, so it cannot send another batch after the assets were reset."""
+        if self.feed is not None and self.feed._thread is not None:
+            self.feed._thread.join(timeout=5)
+
     def clear(self) -> int:
         """Stops the feed and removes every simulated asset."""
         self.stop()
-        if self.feed is not None and self.feed._thread is not None:
-            self.feed._thread.join(timeout=5)
+        self._join()
         self.feed = None
         return simulator.reset_live_assets()
 

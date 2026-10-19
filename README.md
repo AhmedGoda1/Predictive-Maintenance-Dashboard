@@ -99,7 +99,7 @@ mosquitto_sub -t 'pdm/v1/assets/+/state' -t 'pdm/v1/assets/+/rejected' -v
 - Delivery is at-least-once: QoS 1, a persistent session (fixed client id), and acknowledgement to the broker only
   after the message is stored and scored. If the service is down, the broker keeps the messages. Re-sending a
   reading (same timestamp) is a harmless duplicate, so redelivery never double-counts.
-- A reading older than the newest stored one is refused (out of order); `age` must increase. `age` is optional for
+- A reading older than the newest stored one is refused (out of order), and so is one more than 5 minutes ahead of the server clock (a device with a wrong clock would otherwise lock its asset out); `age` must increase. `age` is optional for
   second-based types (derived from `ts`) and required for the others (e.g. engine cycles). A missing operating
   condition (e.g. the motor's `voltage_regime`) carries forward the last known value.
 - An asset is scored once it has enough readings to learn its healthy baseline (20); until then it is
