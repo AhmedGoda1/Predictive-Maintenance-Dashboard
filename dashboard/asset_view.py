@@ -119,23 +119,25 @@ STATUS_ICONS = {"accepted": "📥", "in_progress": "🔧", "completed": "✅", "
 
 
 def _work_order_status(order: dict) -> None:
-    """How the work order of an alert was delivered."""
+    """Where the work order of an alert went, and its latest status."""
     wo, code = order["work_order_id"], order["response_code"]
     if order["delivery"] == "sent":
         st.success(f"Work order **{wo}** sent to {order['target']} (HTTP {int(code)}).")
     elif order["delivery"] == "failed":
         detail = f"HTTP {int(code)}: {order['response']}" if pd.notna(code) else order["response"]
         st.error(f"Work order **{wo}** could not be delivered to {order['target']} ({detail}).")
-    else:
-        st.warning(f"Work order **{wo}** stored, but not sent: no maintenance service is configured.")
+    else:                         # no external service: the maintenance team works from the dashboard itself
+        st.success(f"Work order **{wo}** created. It is on the maintenance team's list.")
     if pd.notna(order.get("status")):
         icon = STATUS_ICONS.get(order["status"], "ℹ️")
         ext = f" as **{order['external_id']}**" if pd.notna(order.get("external_id")) else ""
         note = f": {order['status_note']}" if pd.notna(order.get("status_note")) else ""
-        st.info(f"{icon} Service reports **{order['status'].replace('_', ' ')}**{ext} "
+        st.info(f"{icon} Status: **{order['status'].replace('_', ' ')}**{ext} "
                 f"({order['status_at']:%Y-%m-%d %H:%M} UTC){note}")
     elif order["delivery"] == "sent":
         st.caption("Waiting for the service to confirm.")
+    elif order["delivery"] == "not_configured":
+        st.caption("Waiting for the maintenance team to start it.")
 
 
 def render(a: ds.AssetData):
@@ -188,9 +190,6 @@ def render(a: ds.AssetData):
         active = a.alerts[a.alerts["ts"] <= current["ts"]]
         if active.empty:
             st.success("No alerts so far. The asset is operating within healthy parameters.")
-        elif ds.work_order_target() is None:
-            st.caption("No maintenance service is configured (PDM_WORK_ORDER_URL), so dispatched work orders "
-                       "are only stored here.")
         orders = ds.work_orders(asset_id)
         for _, row in active.iterrows():
             with st.expander(f"{utils.STATUS_ICONS.get(row['status_level'], '⚠️')} {row['ts']:%Y-%m-%d %H:%M} · "
@@ -200,7 +199,7 @@ def render(a: ds.AssetData):
                 st.write(f"**Suggested action:** {row['suggested_action']}")
                 alert_id = int(row["alert_id"])
                 order = orders.get(alert_id)
-                if order is None or order["delivery"] != "sent":
+                if order is None or order["delivery"] == "failed":
                     label = "Dispatch Work Order" if order is None else "Send Work Order again"
                     if st.button(label, key=f"btn_{asset_id}_{alert_id}"):
                         with st.spinner("Sending work order..."):

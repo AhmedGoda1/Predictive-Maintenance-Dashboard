@@ -1,5 +1,9 @@
 # Sending work orders to a maintenance system: step by step
 
+> **Optional.** Without any of this, work orders already reach the maintenance team: they appear on the
+> maintenance login's page, where technicians start, complete or reject them (see [LOGIN.md](LOGIN.md)). Use this
+> guide only to also send them to an external system.
+
 **Dispatch Work Order** on an alert sends a work order to another service: your maintenance system (CMMS),
 a ticketing tool, or an automation tool such as Power Automate, Zapier or n8n. That service then confirms the
 order, and the dashboard shows what it said: *accepted*, *in progress*, *completed*, *rejected* or *cancelled*.
@@ -78,13 +82,13 @@ PowerShell, set each variable first: `$env:PDM_WORK_ORDER_URL="http://localhost:
 1. In the dashboard, open **Asset detail** and pick an asset with alerts (the DC motor `MTR_01` has several).
 2. Open the **🚨 Alerts & Actions** tab and press **Dispatch Work Order** on an alert.
 3. The alert shows *"Work order WO-MTR_01-5 sent to http://localhost:1880/work-orders (HTTP 201)"* and
-   *"📥 Service reports accepted as CMMS-1"*. In Node-RED, the debug sidebar shows the order.
+   *"📥 Status: accepted as CMMS-1"*. In Node-RED, the debug sidebar shows the order.
 
 ### 6. Report back from Node-RED
 
 1. In Node-RED, click the button of **Start work**. Back in the dashboard, click anywhere (or reload): the alert
-   shows *"🔧 Service reports in progress as CMMS-1: Technician on site"*.
-2. Click **Complete**: *"✅ Service reports completed as CMMS-1: Repaired and tested"*.
+   shows *"🔧 Status: in progress as CMMS-1: Technician on site"*.
+2. Click **Complete**: *"✅ Status: completed as CMMS-1: Repaired and tested"*.
 
 That is the whole round trip. To connect a real maintenance system later, keep the **POST /work-orders** node and
 replace what comes after it: an **http request** node that creates the order in your CMMS's API, and a second
@@ -123,7 +127,7 @@ accepts every order and reports it completed 20 seconds later.
 
 | Variable | Required | What it is |
 |---|---|---|
-| `PDM_WORK_ORDER_URL` | yes | The URL the work order is POSTed to, `http://` or `https://`. Without it, orders are only stored. |
+| `PDM_WORK_ORDER_URL` | yes | The URL the work order is POSTed to, `http://` or `https://`. Without it, orders stay in the dashboard, on the maintenance page. |
 | `PDM_WORK_ORDER_TOKEN` | no | Sent as `Authorization: Bearer <token>`. Use it if your service expects a bearer token. |
 | `PDM_WORK_ORDER_TIMEOUT` | no | Seconds to wait for the service (default 10). |
 
@@ -273,7 +277,7 @@ work orders are lost when the app restarts.
 
 | You see | Likely cause |
 |---|---|
-| *"stored, but not sent: no maintenance service is configured"* | `PDM_WORK_ORDER_URL` is not set (or not in the app's secrets). Restart the app after setting it. |
+| *"created. It is on the maintenance team's list"*, but nothing reaches your service | `PDM_WORK_ORDER_URL` is not set (or not in the app's secrets). Restart the app after setting it. |
 | *"could not be delivered … (HTTP 401 …)"* | The service wants a different token: check `PDM_WORK_ORDER_TOKEN`. |
 | *"could not be delivered … (Connection refused)"* or *"timed out"* | The URL is wrong, the service is down, or it isn't reachable from where the dashboard runs. |
 | *"sent … Waiting for the service to confirm"* stays | The service answered 2xx without a `status`, and no update arrived. Check the update route (step 5 or 6). |

@@ -276,3 +276,20 @@ def test_the_dashboard_shows_what_the_service_confirmed(order, db_copy, monkeypa
     at.radio(key="view").set_value("Asset detail").run()
     assert not at.exception
     assert any("in progress" in i.value and "CMMS-5" in i.value and "on site" in i.value for i in at.info)
+
+
+def test_without_a_service_the_dashboard_hands_the_order_to_the_maintenance_team(db_copy, monkeypatch):
+    """No PDM_WORK_ORDER_URL is the normal setup: no warning, no resend button, the order is on the team's list."""
+    monkeypatch.setattr(db, "DB_NAME", db_copy)
+    monkeypatch.delenv("PDM_WORK_ORDER_URL", raising=False)
+    at = AppTest.from_file(APP, default_timeout=120).run()
+    at.session_state["selected_asset"] = "MTR_01"
+    at.radio(key="view").set_value("Asset detail").run()
+    newest = db.get_alerts("MTR_01", db_copy).iloc[0]
+    at.button(key=f"btn_MTR_01_{newest['alert_id']}").click().run()
+    assert not at.exception and not [w for w in at.warning if "work order" in w.value.lower()]
+    assert any("on the maintenance team's list" in s.value for s in at.success)
+    at.run()
+    assert f"btn_MTR_01_{newest['alert_id']}" not in [b.key for b in at.button]
+    import data_source as ds
+    assert list(ds.active_work_orders()["alert_id"]) == [newest["alert_id"]]
