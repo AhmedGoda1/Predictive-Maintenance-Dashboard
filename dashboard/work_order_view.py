@@ -10,8 +10,7 @@ import data_source as ds
 from asset_view import STATUS_ICONS
 
 PRIORITY_ICONS = {"urgent": "⚫", "high": "🔴", "medium": "🟡"}
-DELIVERY_TEXT = {"sent": None, "failed": "not delivered to the maintenance service",
-                 "not_configured": "stored here only (no maintenance service configured)"}
+DELIVERY_TEXT = {"failed": "not delivered to the external maintenance service"}
 
 
 def _status_text(order) -> str:
@@ -73,6 +72,6 @@ def render(user: str = None) -> None:
         st.success("No open work orders. Nothing to do right now.")
         return
     st.caption("Most urgent first, then oldest first. An order leaves this list once it is completed, cancelled or "
-               "rejected, here or in the maintenance service.")
+               "rejected.")
     for _, order in orders.iterrows():
         _order(order, user)

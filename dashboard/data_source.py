@@ -254,11 +254,6 @@ def work_orders(asset_id: str) -> dict:
     return {int(o["alert_id"]): o for o in db.get_work_orders(asset_id).to_dict("records")}
 
 
-def work_order_target():
-    """The webhook work orders go to, or None when none is configured."""
-    return wo.WebhookConfig.from_env()
-
-
 def dispatch_work_order(alert_id: int) -> dict:
     return wo.dispatch(alert_id)
 

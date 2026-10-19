@@ -58,10 +58,13 @@ python -m pdm.train                     # optional: retrain / re-evaluate the RU
   the fleet view draws one RUL chart per type. Status colours always come with an icon and a label.
 - A new asset type appears in both views once it is registered; no dashboard code changes.
 
-### Work orders to a maintenance service
+### Work orders
 
-"Dispatch Work Order" on an alert sends a work order as JSON (HTTP POST) to the service named by
-`PDM_WORK_ORDER_URL`. The service confirms it (accepted, in progress, completed, rejected, cancelled) in its answer,
+"Dispatch Work Order" on an alert creates a work order. It goes on the maintenance team's page (see *Logins*
+below), where technicians start, complete or reject it. That is all you need; connecting an external maintenance
+system is optional.
+
+Optionally, the order is also sent as JSON (HTTP POST) to the service named by `PDM_WORK_ORDER_URL`. The service confirms it (accepted, in progress, completed, rejected, cancelled) in its answer,
 over MQTT (`pdm/v1/work_orders/<id>/status`) or over HTTP (`python -m pdm.work_order_callback`), and the alert shows
 the latest status. Every order and its delivery are stored in the `work_orders` table.
 
