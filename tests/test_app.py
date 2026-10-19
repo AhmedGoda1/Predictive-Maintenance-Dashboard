@@ -213,3 +213,33 @@ def test_a_new_subscriber_replaces_the_old_one_instead_of_fighting_it_for_the_se
         assert not first.connected.is_set() and not first._worker.is_alive()     # fully stopped, not just detached
     finally:
         live_feed.stop_all()
+
+
+def test_restarting_the_demo_feed_over_mqtt_starts_the_assets_over(live_db, mqtt_broker, monkeypatch):
+    """Over MQTT the feed cannot delete its assets; without a reset a second start had every reading refused."""
+    import time
+    import live_feed
+    import pandas as pd
+    monkeypatch.setenv("PDM_MQTT_HOST", mqtt_broker.host)
+    monkeypatch.setenv("PDM_MQTT_PORT", str(mqtt_broker.port))
+    monkeypatch.setenv("PDM_MQTT_CLIENT_ID", f"pdm-restart-{time.time_ns()}")
+    monkeypatch.setattr(db, "DB_NAME", live_db)
+    try:
+        assert live_feed.start_ingestor().connected.wait(10)
+        feed = live_feed.FeedController()
+        for _ in range(2):
+            started = pd.Timestamp.now(tz="UTC").tz_localize(None)
+            feed.start(1, False, 0, 30)
+            feed._join()
+            asset_id, total = feed.feed.feeds[0].asset_id, feed.feed.feeds[0].total
+
+            def streamed_again():                # every reading of this run stored, none left from the last one
+                series = db.get_series(asset_id)
+                return len(series) == total and series["ts"].min() >= started
+            end = time.time() + 30
+            while time.time() < end and not streamed_again():
+                time.sleep(0.2)
+            assert streamed_again(), "the restarted feed's readings were not stored"
+            assert feed.status()["errors"] == 0
+    finally:
+        live_feed.stop_all()

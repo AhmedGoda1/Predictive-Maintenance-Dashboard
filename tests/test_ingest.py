@@ -88,9 +88,22 @@ def test_out_of_order_and_non_increasing_age_are_rejected(engine):
     ingest.ingest_readings("E1", rows[5:], db_path=engine)
     r = ingest.ingest_readings("E1", [rows[2]], db_path=engine)                  # older than the newest
     assert r.rejected == 1 and "out of order" in r.results[0].reason
-    later = {**rows[-1], "ts": "2030-01-01T00:00:00", "age": rows[-1]["age"]}    # newer, but the age did not advance
+    later = {**rows[-1], "ts": "2025-01-01T00:00:00", "age": rows[-1]["age"]}    # newer, but the age did not advance
     r = ingest.ingest_readings("E1", [later], db_path=engine)
     assert r.rejected == 1 and "age must increase" in r.results[0].reason
+
+
+def test_a_reading_from_the_future_is_refused_and_does_not_block_later_ones(engine):
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    rows, _ = engine_rows(n=3)
+    future = {**rows[2], "ts": (now + timedelta(days=365)).isoformat()}
+    r = ingest.ingest_readings("E1", rows[:2] + [future], db_path=engine)
+    assert r.accepted == 2 and r.rejected == 1 and "in the future" in r.results[2].reason
+    r = ingest.ingest_readings("E1", [{**rows[2], "ts": now.isoformat()}], db_path=engine)
+    assert r.accepted == 1                                       # the bad clock did not lock the asset out
+    slightly_ahead = {**rows[2], "ts": (now + timedelta(minutes=1)).isoformat(), "age": rows[2]["age"] + 1}
+    assert ingest.ingest_readings("E1", [slightly_ahead], db_path=engine).accepted == 1   # small skew is tolerated
 
 
 def test_batch_is_ordered_by_time_before_it_is_stored(engine):

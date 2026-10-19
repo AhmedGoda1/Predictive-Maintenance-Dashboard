@@ -1,7 +1,7 @@
 """Live ingestion: validate readings as they arrive, store them, and score the asset.
 
-This is the one code path for incoming data. The HTTP API (`pdm.api`), the simulator and the dashboard's
-demo feed all call it, so a reading is treated the same however it arrives.
+This is the one code path for incoming data. The MQTT ingestion service (`pdm.mqtt_ingest`), the simulator and the
+dashboard's demo feed all call it, so a reading is treated the same however it arrives.
 
 Rules for a reading
 -------------------
@@ -9,7 +9,9 @@ Rules for a reading
 * Values are finite numbers. Channels may be missing; a missing operating-condition channel that the
   type groups its baseline by (e.g. the motor's supply regime) carries forward the last known value.
 * `ts` is required. Re-sending a reading with an already stored timestamp is a harmless duplicate, so
-  clients can retry safely. A reading older than the newest stored one is rejected (out of order).
+  clients can retry safely. A reading older than the newest stored one is rejected (out of order), and so
+  is one more than `MAX_CLOCK_SKEW` ahead of this server's clock: stored, it would make every correct
+  reading after it look out of order.
 * `age` (time since the asset started, in the type's age unit) is optional for types measured in
   seconds, where it is derived from `ts`, and required for the others (e.g. engine cycles).
 
@@ -20,6 +22,7 @@ import math
 import sqlite3
 import threading
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -29,6 +32,7 @@ from . import db, health, registry
 from .rul import RulModel
 
 MAX_BATCH = 1000
+MAX_CLOCK_SKEW = timedelta(minutes=5)     # how far a reading may lie ahead of this server's clock
 RESERVED_METADATA = {"recorded", "split"}     # set by the dataset loaders only; a device must not be able to claim them
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -148,6 +152,9 @@ def _validate(raw: dict, t: registry.AssetType) -> tuple:
             raise ValueError("age must not be negative")
     elif t.age_unit != "s":
         raise ValueError(f"age is required for assets measured in {t.age_unit}s")
+    if ts > datetime.now(timezone.utc).replace(tzinfo=None) + MAX_CLOCK_SKEW:
+        raise ValueError(f"ts {ts.isoformat()} is in the future (more than {MAX_CLOCK_SKEW} ahead of the server "
+                         "clock); check the device's clock")
     return ts, age, clean
 
 
