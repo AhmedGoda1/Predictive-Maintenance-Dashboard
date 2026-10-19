@@ -61,11 +61,22 @@ python -m pdm.train                     # optional: retrain / re-evaluate the RU
 ### Work orders to a maintenance service
 
 "Dispatch Work Order" on an alert sends a work order as JSON (HTTP POST) to the service named by
-`PDM_WORK_ORDER_URL`, e.g. a CMMS or ticketing API, or Power Automate / Zapier / n8n in front of one. The service
-confirms it (accepted, in progress, completed, rejected, cancelled) in its answer, over MQTT
-(`pdm/v1/work_orders/<id>/status`) or over HTTP (`python -m pdm.work_order_callback`), and the alert shows the
-latest status. Every order and its delivery are stored in the `work_orders` table.
-**Step-by-step setup, payload and confirmation format: [docs/WORK_ORDERS.md](docs/WORK_ORDERS.md).**
+`PDM_WORK_ORDER_URL`. The service confirms it (accepted, in progress, completed, rejected, cancelled) in its answer,
+over MQTT (`pdm/v1/work_orders/<id>/status`) or over HTTP (`python -m pdm.work_order_callback`), and the alert shows
+the latest status. Every order and its delivery are stored in the `work_orders` table.
+
+The ready-made setup uses a local **Node-RED** as the maintenance side: import
+`examples/node-red-work-orders.json` into Node-RED, then
+
+```bash
+mosquitto -c examples/mosquitto.conf                     # the broker Node-RED's updates travel through
+node-red                                                 # http://localhost:1880, import the flow, Deploy
+PDM_WORK_ORDER_URL=http://localhost:1880/work-orders PDM_WORK_ORDER_TOKEN=demo-token PDM_MQTT_HOST=localhost \
+    streamlit run dashboard/app.py
+```
+
+Dispatch a work order on an alert, then click *Start work* or *Complete* in Node-RED and the alert follows.
+**Step by step, the message formats, connecting a real CMMS and the hosted app: [docs/WORK_ORDERS.md](docs/WORK_ORDERS.md).**
 
 ## Live ingestion (MQTT)
 

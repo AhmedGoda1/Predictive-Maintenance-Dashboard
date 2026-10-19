@@ -4,66 +4,120 @@
 a ticketing tool, or an automation tool such as Power Automate, Zapier or n8n. That service then confirms the
 order, and the dashboard shows what it said: *accepted*, *in progress*, *completed*, *rejected* or *cancelled*.
 
-```
-dashboard ──POST work order (JSON)──▶ your service
-dashboard ◀──"accepted" (in the answer)── your service
-dashboard ◀──"in_progress", "completed" … (MQTT or HTTP)── your service, later
-```
+This guide assumes the maintenance side runs in **Node-RED** on your own computer, next to the dashboard. Node-RED
+is free, runs locally and is wired up in a browser, so it can stand in for a CMMS today and later forward the work
+orders to the real one. Part A sets up the whole round trip. Part B explains the formats, for when you build your
+own flow or connect a real system. Part C covers the hosted dashboard.
 
-Part A tries the whole round trip on your own computer with a stand-in service. Part B connects a real service.
-Part C covers the hosted dashboard. Every command in Part A was run as written on Linux.
+Part A was run as written on Linux, with Node-RED 4.
 
 ---
 
-## Part A: try it on your own computer
+## Part A: Node-RED on your own computer
+
+```
+dashboard ──POST /work-orders──▶ Node-RED (port 1880)
+dashboard ◀──{"id": "CMMS-1", "status": "accepted"}──
+dashboard ◀──MQTT pdm/v1/work_orders/<id>/status── Node-RED, when you click "Start work" or "Complete"
+                    (through the Mosquitto broker on port 1883)
+```
 
 ### 1. Install
 
 ```bash
 pip install -r requirements.txt
+npm install -g --unsafe-perm node-red            # needs Node.js 18 or newer (nodejs.org)
+sudo apt install mosquitto mosquitto-clients     # Linux. macOS: brew install mosquitto. Windows: mosquitto.org/download
 ```
 
-### 2. Start the stand-in maintenance service (terminal 1)
-
-`examples/work_order_receiver.py` plays the part of a CMMS. It accepts every work order, answers with its own
-order number, and with `--complete-after` it reports the order completed a few seconds later.
+### 2. Start the broker (terminal 1)
 
 ```bash
-python examples/work_order_receiver.py --port 8600 --token demo-token --complete-after 20 --callback-token demo-callback
+mosquitto -c examples/mosquitto.conf
 ```
 
-### 3. Start the confirmation endpoint (terminal 2)
+It listens on port 1883 of this computer only, with no password. Node-RED sends its status updates through it.
 
-The service needs somewhere to send its later updates. Here that's the small HTTP endpoint that ships with the
-dashboard. It writes into the same database the dashboard reads.
+### 3. Start Node-RED and import the flow (terminal 2)
 
 ```bash
-PDM_WORK_ORDER_CALLBACK_TOKEN=demo-callback python -m pdm.work_order_callback
+node-red
 ```
 
-It listens on port 8502. If you'd rather use MQTT, skip this step and see step 6 in Part B.
+1. Open http://localhost:1880.
+2. Menu (☰, top right) → **Import** → **select a file to import** → choose `examples/node-red-work-orders.json` →
+   **Import**.
+3. Press **Deploy** (top right). Under the *Send over MQTT* node you should see **connected**.
+
+The flow, on its own tab *PdM work orders*:
+
+| Node | What it does |
+|---|---|
+| **POST /work-orders** | Receives the work order from the dashboard. |
+| **Check token, accept order** | Refuses a request without the right token (`demo-token`, change it in the node). Gives each new order a number `CMMS-1`, `CMMS-2`, … (a resent order keeps its number) and answers `{"id": "CMMS-1", "status": "accepted"}`. |
+| **Work order received** | Shows the order in the debug sidebar (🐞 icon, top right). |
+| **Start work / Complete / Reject** | Buttons: click the square on the left of the node to report that status for the last order received. |
+| **Status of the last order** | Builds the confirmation `{"status": ..., "external_id": "CMMS-1", "note": ...}`. |
+| **Send over MQTT** | Publishes it to the topic the work order names in `reply_to.mqtt_topic`. |
+| **Refused by the dashboard** | Shows any confirmation the dashboard refused, with the reason. |
 
 ### 4. Start the dashboard (terminal 3)
 
 ```bash
-PDM_WORK_ORDER_URL=http://localhost:8600/work-orders \
+PDM_WORK_ORDER_URL=http://localhost:1880/work-orders \
 PDM_WORK_ORDER_TOKEN=demo-token \
-PDM_WORK_ORDER_CALLBACK_URL=http://localhost:8502 \
+PDM_MQTT_HOST=localhost \
 streamlit run dashboard/app.py
 ```
 
+`PDM_MQTT_HOST` makes the dashboard listen to the broker, which is how Node-RED's updates reach it. (On Windows
+PowerShell, set each variable first: `$env:PDM_WORK_ORDER_URL="http://localhost:1880/work-orders"`, and so on.)
+
 ### 5. Dispatch a work order
 
-1. Open **Asset detail** and pick an asset with alerts (the DC motor `MTR_01` has several).
+1. In the dashboard, open **Asset detail** and pick an asset with alerts (the DC motor `MTR_01` has several).
 2. Open the **🚨 Alerts & Actions** tab and press **Dispatch Work Order** on an alert.
-3. You'll see *"Work order WO-MTR_01-5 sent to http://localhost:8600/work-orders (HTTP 201)"*, and below it
-   *"📥 Service reports accepted as DEMO-1"*. Terminal 1 prints the order it received.
-4. After 20 seconds, the stand-in reports the order completed. Click anywhere in the dashboard (or reload) and the
-   alert shows *"✅ Service reports completed as DEMO-1: closed by the demo receiver"*.
+3. The alert shows *"Work order WO-MTR_01-5 sent to http://localhost:1880/work-orders (HTTP 201)"* and
+   *"📥 Service reports accepted as CMMS-1"*. In Node-RED, the debug sidebar shows the order.
+
+### 6. Report back from Node-RED
+
+1. In Node-RED, click the button of **Start work**. Back in the dashboard, click anywhere (or reload): the alert
+   shows *"🔧 Service reports in progress as CMMS-1: Technician on site"*.
+2. Click **Complete**: *"✅ Service reports completed as CMMS-1: Repaired and tested"*.
+
+That is the whole round trip. To connect a real maintenance system later, keep the **POST /work-orders** node and
+replace what comes after it: an **http request** node that creates the order in your CMMS's API, and a second
+**http in** node (or an **mqtt in**, or a timer that polls the CMMS) that turns the CMMS's updates into the
+confirmation message of Part B, step 4.
+
+### Without MQTT: confirm over HTTP instead
+
+If you don't want a broker, the dashboard can receive updates over HTTP:
+
+1. In a fourth terminal: `PDM_WORK_ORDER_CALLBACK_TOKEN=demo-callback python -m pdm.work_order_callback`
+   (port 8502; the token must match `CALLBACK_TOKEN` in the *Status of the last order* node).
+2. In Node-RED, double-click **Send over MQTT** and disable it (toggle at the bottom of the dialog), enable
+   **Or send over HTTP** and **Callback answer** the same way, then **Deploy**.
+3. Start the dashboard with `PDM_WORK_ORDER_CALLBACK_URL=http://localhost:8502` instead of `PDM_MQTT_HOST`.
+
+The buttons now POST to `http://localhost:8502/work-orders/<id>/status`; *Callback answer* shows `200` when the
+dashboard stored the update.
+
+### If you run Node-RED in Docker
+
+Inside the container, `localhost` is the container itself. Use `host.docker.internal` (Docker Desktop) in the
+*Local broker* settings and in the callback URL, and publish port 1880: `docker run -p 1880:1880 nodered/node-red`.
+
+### No Node-RED?
+
+`examples/work_order_receiver.py` does the same in Python:
+`python examples/work_order_receiver.py --port 1880 --token demo-token --complete-after 20 --mqtt-host localhost`
+accepts every order and reports it completed 20 seconds later.
 
 ---
 
-## Part B: connect your real service
+## Part B: the formats, for your own flow or a real system
 
 ### 1. Point the dashboard at the service
 
@@ -190,9 +244,6 @@ If the dashboard already uses an MQTT broker for live data, the ingestion servic
    `pdm/v1/work_orders/<work_order_id>/rejected` with the reason. Subscribe to it while you set things up:
    `mosquitto_sub -t 'pdm/v1/work_orders/+/rejected' -v`.
 
-To try MQTT with the stand-in: `python examples/work_order_receiver.py --complete-after 20 --mqtt-host localhost`
-(with the broker and `python -m pdm.mqtt_ingest` running as in [LIVE_DATA.md](LIVE_DATA.md), Part A).
-
 ---
 
 ## Part C: on the hosted dashboard (Streamlit Cloud)
@@ -208,11 +259,13 @@ To try MQTT with the stand-in: `python examples/work_order_receiver.py --complet
    itself when `PDM_MQTT_HOST` and the other broker secrets are set (see [LIVE_DATA.md](LIVE_DATA.md), Part B).
    Streamlit Cloud can only run the dashboard, so the HTTP endpoint of option 1 is not available there.
 3. The service must be reachable from the internet: Streamlit Cloud can't reach `localhost` or your company
-   network.
+   network. A Node-RED on your laptop is therefore out of reach for the hosted app; run it on a server, or expose
+   it with a tunnel (ngrok, Cloudflare Tunnel) for a test, and point the flow's *Local broker* at the same broker
+   the hosted app uses.
 
-**Not tested here:** a hosted Streamlit app with these secrets and a real CMMS. Part A was run end to end, over
-both HTTP and MQTT. As with the live data, the hosted app keeps its database on temporary disk, so work orders are
-lost when the app restarts.
+**Not tested here:** a hosted Streamlit app with these secrets and a real CMMS. Part A was run end to end with
+Node-RED, over both MQTT and HTTP. As with the live data, the hosted app keeps its database on temporary disk, so
+work orders are lost when the app restarts.
 
 ---
 
@@ -226,4 +279,7 @@ lost when the app restarts.
 | *"sent … Waiting for the service to confirm"* stays | The service answered 2xx without a `status`, and no update arrived. Check the update route (step 5 or 6). |
 | `401` from the callback endpoint | The service's bearer secret doesn't match `PDM_WORK_ORDER_CALLBACK_TOKEN`. |
 | `404` from the callback, or `not_found` on the `rejected` topic | The work order id is misspelled, or the dashboard's database was rebuilt since the order was sent. |
+| Node-RED's *Send over MQTT* says *disconnected* | The broker is not running, or the *Local broker* settings point elsewhere. |
+| Node-RED answers 401 | `PDM_WORK_ORDER_TOKEN` differs from `TOKEN` in *Check token, accept order*. |
+| Node-RED warns *No work order received yet* | Node-RED was restarted (it forgets orders) or nothing was dispatched: dispatch again. |
 | A status doesn't change | The update's `at` is older than the status already stored, so it was ignored. |
