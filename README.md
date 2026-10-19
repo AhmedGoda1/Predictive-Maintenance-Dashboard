@@ -67,6 +67,12 @@ confirms it (accepted, in progress, completed, rejected, cancelled) in its answe
 latest status. Every order and its delivery are stored in the `work_orders` table.
 **Step-by-step setup, payload and confirmation format: [docs/WORK_ORDERS.md](docs/WORK_ORDERS.md).**
 
+### Logins: admin and maintenance
+
+With accounts in the app's secrets, the dashboard asks for a login. An **admin** sees everything above; a
+**maintenance** user sees only the open work orders and marks them started, completed or rejected (recorded like
+a confirmation from the service). Without accounts there is no login. **Setup: [docs/LOGIN.md](docs/LOGIN.md).**
+
 ## Live ingestion (MQTT)
 
 Devices or a gateway publish to an MQTT broker; the ingestion service subscribes, validates, stores and scores,
@@ -257,5 +263,6 @@ only, so the predictions are out-of-sample. At their last reading, the remaining
 - Survival-style handling of assets that have not failed yet, and domain adaptation / fine-tuning on a customer's
   few failures.
 - Model versioning with drift monitoring and a retraining loop fed by maintenance outcomes.
-- Dashboard login and multi-tenancy (broker-level authentication and per-device ACLs exist). Work orders go out
+- Single sign-on and multi-tenancy (the dashboard has a simple login with admin and maintenance roles;
+  broker-level authentication and per-device ACLs exist). Work orders go out
   to a webhook, but nothing comes back yet: a work order closed in the CMMS does not close the alert here.

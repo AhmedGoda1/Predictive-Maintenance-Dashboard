@@ -24,3 +24,6 @@ models/*.joblib
 # SQLite write-ahead log files
 *.db-wal
 *.db-shm
+
+# local Streamlit secrets (logins, service URLs)
+.streamlit/secrets.toml

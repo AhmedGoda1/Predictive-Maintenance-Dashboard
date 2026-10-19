@@ -263,5 +263,28 @@ def dispatch_work_order(alert_id: int) -> dict:
     return wo.dispatch(alert_id)
 
 
+CLOSED_STATUSES = ("completed", "cancelled", "rejected")
+_PRIORITY_RANK = {"urgent": 0, "high": 1, "medium": 2}
+
+
+def active_work_orders() -> pd.DataFrame:
+    """Work orders still to be done (the service has not reported them completed, cancelled or rejected),
+    most urgent first, then oldest first. Columns of db.get_work_orders plus the payload, parsed."""
+    orders = db.get_work_orders()
+    orders = orders[~orders["status"].isin(CLOSED_STATUSES)].copy()
+    orders["details"] = [json.loads(p) for p in orders["payload"]]
+    orders["_rank"] = orders["priority"].map(_PRIORITY_RANK).fillna(len(_PRIORITY_RANK))
+    return orders.sort_values(["_rank", "created_at"]).drop(columns="_rank").reset_index(drop=True)
+
+
+def confirm_work_order(work_order_id: str, status: str, note: str = None, by: str = None) -> dict:
+    """A technician reports progress from the dashboard, the same way the maintenance service would."""
+    note = (note or "").strip() or None
+    if by:
+        note = f"{by}: {note}" if note else f"by {by}"
+    return wo.confirm(work_order_id, {"status": status, "note": note})
+
+
 def asset_label(row) -> str:
     return f"{row['name']}  ({row['asset_id']})"
+

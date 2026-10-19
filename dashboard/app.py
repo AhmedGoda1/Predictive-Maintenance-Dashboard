@@ -33,11 +33,14 @@ def _code_version() -> str:
 CODE_VERSION = _code_version()
 
 import asset_view  # noqa: E402  (imported after the check above so they are always fresh)
+import auth  # noqa: E402
 import data_source as ds  # noqa: E402
 import fleet_view  # noqa: E402
 import live_feed  # noqa: E402
+import work_order_view  # noqa: E402
 
 st.set_page_config(page_title="Predictive Maintenance Dashboard", page_icon="🛠️", layout="wide")
+USER = auth.require_login()          # shows the login form and stops here until someone logs in
 
 
 @st.cache_data(show_spinner="Preparing database...")
@@ -65,19 +68,24 @@ REFRESH_SECONDS = float(os.environ.get("PDM_REFRESH_SECONDS", 3))     # 0 turns 
 
 with st.spinner("Preparing database..."):
     STAMP = ds.data_stamp()          # builds the database first if it is missing or outdated
-fleet = get_fleet(CODE_VERSION, STAMP)
-feed = get_feed(CODE_VERSION)
-ingestor = get_ingestor(CODE_VERSION)
-asset_ids = list(fleet.assets["asset_id"])
-names = dict(zip(fleet.assets["asset_id"], fleet.assets["name"]))
+ingestor = get_ingestor(CODE_VERSION)      # also receives the maintenance service's confirmations over MQTT
+feed = get_feed(CODE_VERSION) if USER["role"] == "admin" else None      # only admins drive the demo feed
 
-st.session_state.setdefault("view", "Fleet")
-# the first asset opened from the sidebar is the one that needs attention most
-st.session_state.setdefault("selected_asset", ds.snapshot(fleet, 1.0)["asset_id"].iloc[0])
 
-st.sidebar.title("🛠️ Maintenance Portal")
-st.sidebar.radio("View", ["Fleet", "Asset detail"], key="view")
-st.sidebar.markdown("---")
+def refresh_checkbox():
+    if REFRESH_SECONDS > 0:
+        st.sidebar.checkbox(f"Refresh every {REFRESH_SECONDS:g} s", key="live_refresh",
+                            help="Reloads the page to show new data as it arrives.")
+
+
+def maintenance_portal():
+    """The maintenance role sees only the work orders that are still open."""
+    st.sidebar.title("🛠️ Maintenance Portal")
+    auth.sidebar(USER)
+    st.sidebar.markdown("---")
+    refresh_checkbox()
+    work_order_view.render(USER["name"])
+
 
 def live_panel():
     """Start / stop the simulated sensor feed and choose whether the page refreshes by itself."""
@@ -117,24 +125,43 @@ def live_panel():
                      disabled=not live_feed.has_live_assets()):
             feed.clear()
             st.rerun()
-        if REFRESH_SECONDS > 0:
-            st.checkbox(f"Refresh every {REFRESH_SECONDS:g} s", key="live_refresh",
-                        help="Reloads the page to show readings as they arrive.")
+    refresh_checkbox()
 
 
-if st.session_state["view"] == "Fleet":
-    st.sidebar.info("Recorded test runs, scored as if they were live assets. Select a row in the priority table "
-                    "to open an asset.")
-    fleet_view.render(fleet)
-    live_panel()
+def admin_dashboard():
+    """The full dashboard: fleet, asset detail and the live data panel."""
+    fleet = get_fleet(CODE_VERSION, STAMP)
+    asset_ids = list(fleet.assets["asset_id"])
+    names = dict(zip(fleet.assets["asset_id"], fleet.assets["name"]))
+
+    st.session_state.setdefault("view", "Fleet")
+    # the first asset opened from the sidebar is the one that needs attention most
+    st.session_state.setdefault("selected_asset", ds.snapshot(fleet, 1.0)["asset_id"].iloc[0])
+
+    st.sidebar.title("🛠️ Maintenance Portal")
+    auth.sidebar(USER)
+    st.sidebar.radio("View", ["Fleet", "Asset detail"], key="view")
+    st.sidebar.markdown("---")
+
+    if st.session_state["view"] == "Fleet":
+        st.sidebar.info("Recorded test runs, scored as if they were live assets. Select a row in the priority table "
+                        "to open an asset.")
+        fleet_view.render(fleet)
+        live_panel()
+    else:
+        current = st.session_state["selected_asset"]
+        asset_id = st.sidebar.selectbox(
+            "Asset", asset_ids, index=asset_ids.index(current) if current in asset_ids else 0,
+            format_func=lambda a: f"{names[a]} ({a})")
+        st.session_state["selected_asset"] = asset_id
+        asset_view.render(get_asset(asset_id, CODE_VERSION, STAMP))
+        live_panel()
+
+
+if USER["role"] == "maintenance":
+    maintenance_portal()
 else:
-    current = st.session_state["selected_asset"]
-    asset_id = st.sidebar.selectbox(
-        "Asset", asset_ids, index=asset_ids.index(current) if current in asset_ids else 0,
-        format_func=lambda a: f"{names[a]} ({a})")
-    st.session_state["selected_asset"] = asset_id
-    asset_view.render(get_asset(asset_id, CODE_VERSION, STAMP))
-    live_panel()
+    admin_dashboard()
 
 if REFRESH_SECONDS > 0 and st.session_state.get("live_refresh"):
     time.sleep(REFRESH_SECONDS)
