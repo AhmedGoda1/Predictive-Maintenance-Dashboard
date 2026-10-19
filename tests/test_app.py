@@ -25,7 +25,7 @@ def test_fleet_view_shows_status_counts(app):
     assert not app.exception
     m = _metrics(app)
     assert m["Assets monitored"] == "21"
-    assert (m["⚫ Failed"], m["🔴 Critical"], m["🟡 Warning"], m["🟢 Healthy"]) == ("1", "9", "2", "9")
+    assert (m["⚫ Failed"], m["🔴 Critical"], m["🟡 Warning"], m["🟢 Healthy"]) == ("1", "8", "3", "9")
 
 
 def test_fleet_filters(app):
@@ -67,8 +67,8 @@ def test_engine_detail_reports_interval_and_model_quality(app):
     app.session_state["selected_asset"] = "FD001-test-021"
     app.radio(key="view").set_value("Asset detail").run()
     m = _metrics(app)
-    assert m["Estimated RUL"] == "54 cycles" and m["Actual remaining life"] == "57 cycles"
-    assert m["Interval coverage (nominal 80%)"] == "77%"
+    assert m["Estimated RUL"] == "61 cycles" and m["Actual remaining life"] == "57 cycles"
+    assert m["Interval coverage (nominal 80%)"] == "73%"
     assert any("80% range" in c.value for c in app.caption)
 
 

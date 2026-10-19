@@ -55,7 +55,7 @@ def register_turbofan_model(db_path, subset: str = FLEET_SUBSET, model: rul.RulM
     if train.METRICS_FILE.exists():
         metrics_json = json.loads(train.METRICS_FILE.read_text()).get(subset, {})
     db.register_model(
-        f"turbofan_{subset}", "turbofan_engine", "learned", source=f"{cmapss.SOURCE} {subset} train engines",
+        f"turbofan_{subset}", "turbofan_engine", "learned", source=f"{cmapss.SOURCE} {'+'.join(train.TRAIN_SUBSETS[subset])} train engines",
         artifact_path=str(path.relative_to(train.MODELS_DIR.parent)),
         params={"rul_cap": model.rul_cap, "window": model.window, "n_regimes": model.n_regimes,
                 "coverage": model.coverage}, metrics=metrics_json, db_path=db_path)

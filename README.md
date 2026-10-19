@@ -220,6 +220,9 @@ The system should report which level produced a number. `health_scores.method` s
 - **Model:** gradient boosting for the estimate plus two quantile models for the 10 % / 90 % bounds. The
   interval width is corrected with residuals of engines the models did not see during fitting (conformalised
   quantile regression, 80 % nominal coverage).
+- **Training data:** FD001 and FD003 are the same simulated engine at one operating condition (FD003 adds a
+  second fault mode), so their models are trained on the train engines of both (200 engines). Against FD001
+  train engines alone, this lowered the FD001 test RMSE from 13.5 to 12.8 and the FD003 one from 11.7 to 11.3.
 - **Evaluation:** the standard C-MAPSS protocol. Fit on the train engines, then predict the remaining life at
   the last reading of every held-out test engine and compare with the true RUL from the benchmark. No
   hyper-parameter search was done against the test engines.
@@ -228,9 +231,9 @@ The system should report which level produced a number. `health_scores.method` s
 
 | Subset | Conditions / fault modes | Train / test engines | RMSE | MAE | NASA score | Interval coverage (nominal 80 %) | Constant guess RMSE | Age-only RMSE |
 |---|---|---|---|---|---|---|---|---|
-| FD001 | 1 / 1 | 100 / 100 | **13.5** | 9.8 | 258 | 0.77 | 43.1 | 32.1 |
+| FD001 | 1 / 1 | 200 / 100 | **12.8** | 9.6 | 240 | 0.73 | 44.1 | 33.4 |
 | FD002 | 6 / 1 | 260 / 259 | **23.4** | 14.8 | 4235 | 0.80 | 54.1 | 38.2 |
-| FD003 | 1 / 2 | 100 / 100 | **11.7** | 8.2 | 252 | 0.77 | 45.1 | 35.3 |
+| FD003 | 1 / 2 | 200 / 100 | **11.3** | 8.3 | 216 | 0.79 | 44.0 | 33.7 |
 | FD004 | 6 / 2 | 249 / 248 | **23.9** | 16.3 | 3260 | 0.77 | 54.9 | 47.8 |
 
 The NASA score penalises late predictions harder than early ones (lower is better). Full numbers are in
@@ -238,8 +241,8 @@ The NASA score penalises late predictions harder than early ones (lower is bette
 
 Read these with the following in mind:
 - **Coverage:** an interval whose upper bound reaches the cap counts as covering any longer true life ("at
-  least 125 cycles"). Counted strictly, coverage is 0.69 / 0.59 / 0.63 / 0.53. FD001, FD003 and FD004 come in
-  slightly under the nominal 80 % (0.77), so their intervals are a little too narrow.
+  least 125 cycles"). Counted strictly, coverage is 0.65 / 0.59 / 0.66 / 0.53. FD001 (0.73), FD003 (0.79) and
+  FD004 (0.77) come in under the nominal 80 %, so their intervals are somewhat too narrow.
 - Operating-condition normalisation matters: the six-condition subsets (FD002, FD004) are clearly harder.
 - The models are gradient-boosted trees on hand-made window features. A 1D-CNN in the style of Li et al.
   (2018) and a two-layer LSTM, trained on 30-cycle windows with the same 125-cycle cap, reached a test RMSE of
@@ -273,9 +276,9 @@ A. Saxena and K. Goebel (2008), *Turbofan Engine Degradation Simulation Data Set
 Repository (public domain). A. Saxena et al., "Damage Propagation Modeling for Aircraft Engine Run-to-Failure
 Simulation", PHM 2008. One cycle is mapped to one hour on a synthetic timeline.
 
-`build_db.py` loads 20 FD001 *test* engines. They are scored by the model trained on the FD001 train engines
-only, so the predictions are out-of-sample. At their last reading, the remaining life of Critical engines was
-8-21 cycles (mean 14), of Warning engines 38-57 (mean 47) and of Healthy ones 84-137 (mean 107). Only the FD001 files and the FD001 model are committed.
+`build_db.py` loads 20 FD001 *test* engines. They are scored by the model trained on the FD001 and FD003 train
+engines only, so the predictions are out-of-sample. At their last reading, the remaining life of Critical engines was
+8-21 cycles (mean 14), of Warning engines 38-57 (mean 47) and of Healthy ones 84-137 (mean 107). Only the FD001 and FD003 files and the FD001 model are committed.
 
 ## What is still missing for a commercial product
 
