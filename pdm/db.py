@@ -66,6 +66,14 @@ def init_db(db_path=None, reset: bool = False) -> None:
         register_asset_type(asset_type, path)
 
 
+def _add_new_tables(conn) -> None:
+    """Creates tables added to schema.sql after a database was built (work_orders) without rebuilding it.
+
+    Every statement of the schema is CREATE ... IF NOT EXISTS, so this leaves existing tables alone.
+    """
+    conn.executescript(SCHEMA_FILE.read_text())
+
+
 def mark_current(db_path=None) -> None:
     """Stamps the database as complete and matching this version of the code (call after a build)."""
     with connect(db_path) as conn:
@@ -229,7 +237,9 @@ def delete_asset(asset_id: str, db_path=None) -> None:
     with connect(db_path) as conn:
         conn.execute("DELETE FROM measurements WHERE reading_id IN "
                      "(SELECT reading_id FROM readings WHERE asset_id = ?)", (asset_id,))
-        for table in ("readings", "failure_events", "segments", "health_scores", "maintenance_alerts", "assets"):
+        _add_new_tables(conn)
+        for table in ("readings", "failure_events", "segments", "health_scores", "maintenance_alerts",
+                      "work_orders", "assets"):
             conn.execute(f"DELETE FROM {table} WHERE asset_id = ?", (asset_id,))
 
 
@@ -358,6 +368,34 @@ def get_alerts(asset_id: str = None, db_path=None) -> pd.DataFrame:
 
 def get_latest_alert(asset_id: str, db_path=None):
     df = get_alerts(asset_id, db_path)
+    return None if df.empty else df.iloc[0].to_dict()
+
+
+# ---------------------------------------------------------------- work orders
+WORK_ORDER_COLUMNS = ["work_order_id", "alert_id", "asset_id", "created_at", "priority", "payload", "target",
+                      "delivery", "response_code", "response", "sent_at"]
+
+
+def save_work_order(order: dict, db_path=None) -> None:
+    """Stores a work order, or replaces the one of the same alert (a resend)."""
+    with connect(db_path) as conn:
+        _add_new_tables(conn)
+        conn.execute(f"INSERT OR REPLACE INTO work_orders ({', '.join(WORK_ORDER_COLUMNS)}) "
+                     f"VALUES ({', '.join('?' * len(WORK_ORDER_COLUMNS))})",
+                     [order.get(c) for c in WORK_ORDER_COLUMNS])
+
+
+def get_work_orders(asset_id: str = None, db_path=None) -> pd.DataFrame:
+    """Work orders, newest first; all assets when asset_id is None."""
+    with connect(db_path) as conn:
+        _add_new_tables(conn)
+    where, params = ("WHERE asset_id = ?", (asset_id,)) if asset_id else ("", ())
+    return _read(f"SELECT * FROM work_orders {where} ORDER BY created_at DESC", params, db_path,
+                 dates=("created_at", "sent_at"))
+
+
+def get_alert(alert_id: int, db_path=None):
+    df = _read("SELECT * FROM maintenance_alerts WHERE alert_id = ?", (int(alert_id),), db_path)
     return None if df.empty else df.iloc[0].to_dict()
 
 

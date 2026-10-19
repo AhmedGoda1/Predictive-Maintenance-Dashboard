@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pdm import db, pipeline, registry  # noqa: E402
+from pdm import db, pipeline, registry, work_orders as wo  # noqa: E402
 
 STATUS_RANK = {"Learning": -1, "Healthy": 0, "Warning": 1, "Critical": 2, "Failed": 3}
 METHOD_LABELS = {
@@ -246,6 +246,21 @@ def load_asset(asset_id: str) -> AssetData:
         model["metrics"] = db.get_metrics(asset_id)
     return AssetData(asset, t, data, failure, db.get_alerts(asset_id), model,
                      method_label(method, data["rul_pred"].dropna().iloc[-1] if data["rul_pred"].notna().any() else np.nan))
+
+
+# ---------------------------------------------------------------- work orders
+def work_orders(asset_id: str) -> dict:
+    """The asset's work orders by alert id."""
+    return {int(o["alert_id"]): o for o in db.get_work_orders(asset_id).to_dict("records")}
+
+
+def work_order_target():
+    """The webhook work orders go to, or None when none is configured."""
+    return wo.WebhookConfig.from_env()
+
+
+def dispatch_work_order(alert_id: int) -> dict:
+    return wo.dispatch(alert_id)
 
 
 def asset_label(row) -> str:
