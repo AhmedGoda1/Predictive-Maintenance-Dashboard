@@ -36,6 +36,17 @@ def test_fleet_filters(app):
     assert m["🟢 Healthy"] == "20" and m["🔴 Critical"] == "0"
 
 
+def test_fleet_playback_runs_to_the_end_and_resets(app):
+    app.slider(key="fleet_pct").set_value(70)
+    app.select_slider(key="fleet_step").set_value(10)
+    app.button(key="fleet_play_btn").click().run()                      # plays tick by tick until 100%, then stops
+    assert not app.exception
+    assert app.slider(key="fleet_pct").value == 100 and not app.session_state["fleet_playing"]
+    assert _metrics(app)["⚫ Failed"] == "1"                              # the same snapshot as the latest readings
+    app.button(key="fleet_reset_btn").click().run()
+    assert app.slider(key="fleet_pct").value == 0 and _metrics(app)["⚫ Failed"] == "0"
+
+
 def test_detail_opens_on_the_asset_that_needs_attention_most(app):
     app.radio(key="view").set_value("Asset detail").run()
     assert not app.exception and app.session_state["selected_asset"] == "MTR_01"     # the only Failed asset

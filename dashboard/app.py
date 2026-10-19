@@ -146,8 +146,10 @@ def admin_dashboard():
     if st.session_state["view"] == "Fleet":
         st.sidebar.info("Recorded test runs, scored as if they were live assets. Select a row in the priority table "
                         "to open an asset.")
-        fleet_view.render(fleet)
+        playing = fleet_view.render(fleet)
         live_panel()
+        if playing:
+            fleet_view.next_tick()
     else:
         current = st.session_state["selected_asset"]
         asset_id = st.sidebar.selectbox(
