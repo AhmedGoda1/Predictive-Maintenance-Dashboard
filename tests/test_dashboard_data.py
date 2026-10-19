@@ -74,7 +74,7 @@ def test_load_motor_asset(fleet):
 def test_models_table_lists_both_models(fleet):
     table = ds.models_table(fleet).set_index("Model")
     assert set(table.index) == {"motor_single_run", "turbofan_FD001"}
-    assert table.loc["turbofan_FD001", "Interval coverage"] == "0.80"
+    assert table.loc["turbofan_FD001", "Interval coverage"] == "0.77"
     assert table.loc["motor_single_run", "Test RMSE"] == "n/a"             # nothing to evaluate on held-out assets
 
 

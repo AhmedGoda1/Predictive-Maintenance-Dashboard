@@ -37,6 +37,28 @@ def test_features_are_causal(runs):
     np.testing.assert_allclose(full.iloc[:80].to_numpy(), cut.to_numpy())
 
 
+def test_baseline_features_are_causal_and_remove_unit_offset(runs):
+    t = registry.get_type("turbofan_engine")
+    fb = rul.FeatureBuilder(t, baseline=20).fit([r.series for r in runs])
+    s = runs[0].series
+    full = fb.transform(s)
+    assert [c for c in full if c.startswith("b_")] == [f"b_{x}" for x in fb.sensors]
+    for n in (5, 20, 80):                                       # before, at and after the baseline is complete
+        np.testing.assert_allclose(full.iloc[:n].to_numpy(), fb.transform(s.iloc[:n]).to_numpy())
+    shifted = s.copy()
+    shifted[fb.sensors] += 3 * fb.stats[0][1]                   # same engine, healthy level 3 std higher
+    b = [c for c in full if c.startswith("b_")]
+    np.testing.assert_allclose(fb.transform(shifted)[b].to_numpy(), full[b].to_numpy(), atol=1e-9)
+
+
+def test_feature_builder_pickled_before_baseline_adds_no_baseline_features(model, runs):
+    """Models pickled before the baseline features existed have no `baseline` on their FeatureBuilder."""
+    import copy
+    legacy = copy.deepcopy(model)
+    del legacy.features.baseline
+    assert not any(c.startswith("b_") for c in legacy.features.transform(runs[0].series))
+
+
 def test_constant_sensors_dropped(runs):
     fb = rul.FeatureBuilder(registry.get_type("turbofan_engine")).fit([r.series for r in runs])
     assert "s1" not in fb.sensors and "s11" in fb.sensors      # s1 never varies in FD001

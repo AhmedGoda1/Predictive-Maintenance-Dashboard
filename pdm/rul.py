@@ -49,13 +49,17 @@ class FeatureBuilder:
 
     Per kept sensor: a short rolling mean, a long rolling mean, a rolling standard deviation and
     the change over one window - all on values z-scored within the operating regime - plus the
-    asset's age. Sensors that never vary in the training data are dropped.
+    asset's age. With `baseline` > 0 also the short mean minus the mean of the asset's own first
+    `baseline` readings, which removes the unit-to-unit offset (each engine starts at a slightly
+    different healthy level) and leaves the drift. Sensors that never vary in the training data
+    are dropped.
     """
 
     def __init__(self, asset_type: registry.AssetType, window: int = 30, short: int = 5, n_regimes: int = 1,
-                 random_state: int = 0):
+                 baseline: int = 0, random_state: int = 0):
         self.asset_type = asset_type
         self.window, self.short, self.n_regimes, self.random_state = window, short, n_regimes, random_state
+        self.baseline = baseline
 
     def _regime(self, frame: pd.DataFrame) -> np.ndarray:
         if self.n_regimes <= 1:
@@ -98,8 +102,14 @@ class FeatureBuilder:
         long = z.rolling(self.window, min_periods=1).mean()
         spread = z.rolling(self.window, min_periods=2).std().fillna(0.0)
         change = (short - short.shift(self.window)).fillna(0.0)
-        out = pd.concat([short.add_prefix("z_"), long.add_prefix("m_"), spread.add_prefix("sd_"),
-                         change.add_prefix("d_")], axis=1)
+        parts = [short.add_prefix("z_"), long.add_prefix("m_"), spread.add_prefix("sd_"), change.add_prefix("d_")]
+        n_base = getattr(self, "baseline", 0)   # models pickled before this feature existed have none
+        if n_base > 0:
+            # causal: until the asset has n_base readings its baseline is the mean of those seen so far
+            first = z.expanding().mean().to_numpy(copy=True)
+            first[n_base:] = first[min(n_base, len(z)) - 1]
+            parts.append((short - first).add_prefix("b_"))
+        out = pd.concat(parts, axis=1)
         out["age"] = frame["age"].to_numpy()
         return out
 
@@ -128,16 +138,20 @@ class RulModel:
     life is not recoverable from the sensors, so the cap keeps the model from chasing noise.
     The interval comes from quantile models whose width is corrected (conformalised quantile
     regression) with residuals of units the models did not see during fitting.
+    `baseline` (default: the asset type's baseline_readings) sets the per-asset baseline features
+    of FeatureBuilder; 0 turns them off.
     """
 
     def __init__(self, type_id: str, rul_cap: float = None, window: int = 30, n_regimes: int = 1,
-                 coverage: float = 0.8, cv_folds: int = 5, model_params: dict = None, random_state: int = 0):
+                 coverage: float = 0.8, cv_folds: int = 5, model_params: dict = None, baseline: int = None,
+                 random_state: int = 0):
         self.type_id = type_id
         self.asset_type = registry.get_type(type_id)
         self.rul_cap = rul_cap if rul_cap is not None else self.asset_type.rul_cap
         if self.rul_cap is None:
             raise ValueError("rul_cap is required (neither given nor set on the asset type)")
         self.window, self.n_regimes, self.coverage = window, n_regimes, coverage
+        self.baseline = self.asset_type.baseline_readings if baseline is None else baseline
         self.cv_folds, self.random_state = cv_folds, random_state
         self.model_params = {**(model_params or {}), "random_state": random_state}
         self.report = None
@@ -164,7 +178,7 @@ class RulModel:
         if len(runs) < max(self.cv_folds, 2):
             raise ValueError(f"need at least {max(self.cv_folds, 2)} assets with a known failure, got {len(runs)}")
         self.features = FeatureBuilder(self.asset_type, self.window, n_regimes=self.n_regimes,
-                                       random_state=self.random_state).fit([r.series for r in runs])
+                                       baseline=self.baseline, random_state=self.random_state).fit([r.series for r in runs])
         X, y, groups = self._design(runs)
         oof = np.zeros((len(y), 3))
         for tr, te in GroupKFold(self.cv_folds).split(X, y, groups):

@@ -180,7 +180,10 @@ The system should report which level produced a number. `health_scores.method` s
 
 - **Features** (causal: a reading never uses later readings): per sensor, a short and a long rolling mean, a
   rolling standard deviation and the change over one window, all z-scored within the operating regime, plus age.
-  Regimes are found with k-means on the operating settings; sensors that never vary are dropped.
+  Also per sensor, the short mean minus the mean of the asset's own first 20 readings (its healthy level).
+  Engines start at slightly different healthy levels; subtracting each one's own baseline leaves only the
+  drift, and cut the cross-validated error by about a sixth. Regimes are found with k-means on the operating
+  settings; sensors that never vary are dropped.
 - **Target:** `min(RUL, cap)` with a 125-cycle cap (piecewise-linear RUL), because the exact remaining life of
   a healthy engine cannot be read from its sensors.
 - **Model:** gradient boosting for the estimate plus two quantile models for the 10 % / 90 % bounds. The
@@ -194,21 +197,24 @@ The system should report which level produced a number. `health_scores.method` s
 
 | Subset | Conditions / fault modes | Train / test engines | RMSE | MAE | NASA score | Interval coverage (nominal 80 %) | Constant guess RMSE | Age-only RMSE |
 |---|---|---|---|---|---|---|---|---|
-| FD001 | 1 / 1 | 100 / 100 | **14.5** | 10.9 | 314 | 0.80 | 43.1 | 32.1 |
-| FD002 | 6 / 1 | 260 / 259 | **25.8** | 17.1 | 8216 | 0.81 | 54.1 | 38.2 |
-| FD003 | 1 / 2 | 100 / 100 | **13.7** | 9.7 | 322 | 0.69 | 45.1 | 35.3 |
-| FD004 | 6 / 2 | 249 / 248 | **25.6** | 18.2 | 4378 | 0.80 | 54.9 | 47.8 |
+| FD001 | 1 / 1 | 100 / 100 | **13.5** | 9.8 | 258 | 0.77 | 43.1 | 32.1 |
+| FD002 | 6 / 1 | 260 / 259 | **23.4** | 14.8 | 4235 | 0.80 | 54.1 | 38.2 |
+| FD003 | 1 / 2 | 100 / 100 | **11.7** | 8.2 | 252 | 0.77 | 45.1 | 35.3 |
+| FD004 | 6 / 2 | 249 / 248 | **23.9** | 16.3 | 3260 | 0.77 | 54.9 | 47.8 |
 
 The NASA score penalises late predictions harder than early ones (lower is better). Full numbers are in
 `models/cmapss_metrics.json`.
 
 Read these with the following in mind:
 - **Coverage:** an interval whose upper bound reaches the cap counts as covering any longer true life ("at
-  least 125 cycles"). Counted strictly, coverage is 0.69 / 0.61 / 0.57 / 0.54. FD003 is under-covered even by
-  the cap-aware count (0.69 against 0.80), so its intervals are too narrow.
+  least 125 cycles"). Counted strictly, coverage is 0.69 / 0.59 / 0.63 / 0.53. FD001, FD003 and FD004 come in
+  slightly under the nominal 80 % (0.77), so their intervals are a little too narrow.
 - Operating-condition normalisation matters: the six-condition subsets (FD002, FD004) are clearly harder.
-- The models are gradient-boosted trees on hand-made window features. Sequence models (LSTM, CNN,
-  transformer) are the obvious next candidate and were not tried.
+- The models are gradient-boosted trees on hand-made window features. A 1D-CNN in the style of Li et al.
+  (2018) and a two-layer LSTM, trained on 30-cycle windows with the same 125-cycle cap, reached a test RMSE of
+  15.2 (CNN, average of 3 seeds) and 15.1 (LSTM, 1 seed) on FD001, so they did no better than this model. They would also add PyTorch to the
+  dashboard's dependencies. The best published FD001 results (attention and transformer models, around 11 to
+  12 RMSE) use varying protocols and are not directly comparable.
 - Generalisation is shown across engines of one type (including different operating conditions and fault
   modes). It is **not** shown across asset types: the turbofan model says nothing about the motor.
 
