@@ -1,5 +1,6 @@
 """Fleet overview: which assets need attention, across asset types."""
 import json
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +12,7 @@ import utils
 
 METRICS_FILE = ds.ROOT / "models" / "cmapss_metrics.json"
 ALL_TYPES = "All types"
+PLAY_STEPS = [1, 2, 5, 10]          # snapshot percentage points per tick
 
 
 def _open_selected():
@@ -23,6 +25,28 @@ def _open_selected():
         st.session_state["view"] = "Asset detail"
         st.session_state[f"pos_{asset_id}"] = st.session_state["_fleet_pos"][asset_id]
         st.session_state[f"playing_{asset_id}"] = False
+        st.session_state["fleet_playing"] = False
+
+
+def _playback_controls(container):
+    """Play / pause / reset and a speed choice for the fleet snapshot. Advances `fleet_pct` while playing."""
+    st.session_state.setdefault("fleet_playing", False)
+    st.session_state.setdefault("fleet_step", st.session_state.get("_fleet_step", 2))
+    play_col, reset_col, speed_col = container.columns([1, 1, 1.4], vertical_alignment="bottom")
+    if play_col.button("⏸ Pause" if st.session_state["fleet_playing"] else "▶ Play", width="stretch",
+                       key="fleet_play_btn", help="Replays the whole fleet through its recorded life."):
+        st.session_state["fleet_playing"] = not st.session_state["fleet_playing"]
+        if st.session_state["fleet_playing"] and st.session_state["fleet_pct"] >= 100:
+            st.session_state["fleet_pct"] = 0
+    if reset_col.button("⏮ Reset", width="stretch", key="fleet_reset_btn"):
+        st.session_state["fleet_playing"] = False
+        st.session_state["fleet_pct"] = 0
+    step = speed_col.select_slider("Speed (% per tick)", options=PLAY_STEPS, key="fleet_step")
+    st.session_state["_fleet_step"] = step
+    if st.session_state["fleet_playing"]:
+        st.session_state["fleet_pct"] = min(100, st.session_state["fleet_pct"] + step)
+        if st.session_state["fleet_pct"] >= 100:
+            st.session_state["fleet_playing"] = False
 
 
 def _rul_text(row) -> str:
@@ -127,7 +151,8 @@ def _models_tab(fleet: ds.Fleet):
     )
 
 
-def render(fleet: ds.Fleet):
+def render(fleet: ds.Fleet) -> bool:
+    """Draws the fleet view. Returns True while playback runs, so the caller schedules the next tick."""
     st.title("Fleet overview")
 
     # filters in one row above everything they scope; restore their values after a view switch
@@ -138,9 +163,12 @@ def render(fleet: ds.Fleet):
     f1, f2, f3 = st.columns([1, 2, 1.2])
     choice = f1.selectbox("Asset type", [ALL_TYPES, *type_names], format_func=lambda t: type_names.get(t, t),
                           key="fleet_type")
-    pct = f2.slider("Snapshot: share of each asset's recorded life", 0, 100, key="fleet_pct", format="%d%%",
+    slider_box = f2.container()          # the slider sits above the playback buttons but is drawn after them,
+    _playback_controls(f2)               # because playback moves its value before the widget exists
+    pct = slider_box.slider("Snapshot: share of each asset's recorded life", 0, 100, key="fleet_pct", format="%d%%",
                     help="Replays the fleet. 100% is each asset's latest reading; lower values show earlier states.")
     show_actual = f3.checkbox("Show actual remaining life (test data)", key="fleet_actual")
+    playing = st.session_state["fleet_playing"]
     st.session_state.update(_fleet_pct=pct, _fleet_type=choice, _fleet_actual=show_actual)
 
     snap = ds.snapshot(fleet, pct / 100)
@@ -165,3 +193,10 @@ def render(fleet: ds.Fleet):
         _alerts_tab(snap)
     with tab_models:
         _models_tab(fleet)
+    return playing
+
+
+def next_tick():
+    """Waits one playback tick, then redraws the page with the next snapshot."""
+    time.sleep(0.5)
+    st.rerun()
