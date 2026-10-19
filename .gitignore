@@ -9,9 +9,9 @@ __pycache__/
 # Environment files
 .env
 .venv/
-# C-MAPSS: only FD001 is committed (the demo subset); the others come from scripts/fetch_cmapss.py
+# C-MAPSS: FD001 (the demo subset) and FD003 (pooled into its model's training) are committed;
+# the others come from scripts/fetch_cmapss.py
 data/cmapss/*FD002*
-data/cmapss/*FD003*
 data/cmapss/*FD004*
 
 # trained models: only the FD001 demo model is committed; the rest is rebuilt with `python -m pdm.train`

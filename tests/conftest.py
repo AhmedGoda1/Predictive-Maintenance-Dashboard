@@ -32,7 +32,7 @@ def live_db(tmp_path):
     db.init_db(path)
     db.mark_current(path)                      # what the ingestion service does when it creates the database
     metrics = json.loads((ROOT / "models" / "cmapss_metrics.json").read_text())["FD001"]
-    db.register_model("turbofan_FD001", "turbofan_engine", "learned", source="NASA C-MAPSS FD001 train engines",
+    db.register_model("turbofan_FD001", "turbofan_engine", "learned", source="NASA C-MAPSS FD001+FD003 train engines",
                       artifact_path="models/turbofan_FD001.joblib", metrics=metrics, db_path=path)
     return path
 
