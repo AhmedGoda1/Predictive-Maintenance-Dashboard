@@ -100,6 +100,27 @@ CREATE TABLE IF NOT EXISTS maintenance_alerts (
     FOREIGN KEY (asset_id) REFERENCES assets (asset_id)
 );
 
+-- Work orders dispatched from an alert to an external maintenance service (see pdm/work_orders.py).
+-- One per alert; a failed delivery keeps its row and can be sent again. The service confirms and updates it
+-- in its answer, over MQTT or over HTTP (pdm/work_order_callback.py).
+CREATE TABLE IF NOT EXISTS work_orders (
+    work_order_id TEXT PRIMARY KEY,
+    alert_id INTEGER NOT NULL UNIQUE,
+    asset_id TEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    priority TEXT NOT NULL,
+    payload TEXT NOT NULL,           -- JSON sent to the target
+    target TEXT,                     -- URL it was sent to (NULL = no target configured)
+    delivery TEXT NOT NULL,          -- sent | failed | not_configured
+    response_code INTEGER,
+    response TEXT,                   -- start of the target's answer, or the error
+    sent_at DATETIME,
+    status TEXT,                     -- what the service confirmed last: accepted | in_progress | completed | ...
+    external_id TEXT,                -- the service's own id for the order
+    status_note TEXT,
+    status_at DATETIME               -- when the service reported that status
+);
+
 -- Trained models and how they were evaluated
 CREATE TABLE IF NOT EXISTS models (
     model_id TEXT PRIMARY KEY,

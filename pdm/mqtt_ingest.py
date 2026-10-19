@@ -10,9 +10,13 @@ Topics (JSON payloads), `<id>` is the asset id (letters, digits, `.`, `_`, `-`; 
                                           "values": {"s2": 642.1, ...}}, or {"readings": [...]},
                                           or a list of readings (at most 1000)
            pdm/v1/assets/<id>/failure    {"ts": "...", "age": 148, "mode": "HPC"}
+           pdm/v1/work_orders/<wo>/status  a maintenance service confirming a work order
+                                          {"status": "accepted", "external_id": "...", "note": "..."}
+                                          (see pdm.work_orders)
   outbound pdm/v1/assets/<id>/state      current status, health index and RUL estimate, with the
                                           counts of the last message (retained: a new subscriber gets it at once)
            pdm/v1/assets/<id>/rejected   what was refused and why (not retained)
+           pdm/v1/work_orders/<wo>/rejected  a refused confirmation and why (not retained)
            pdm/v1/service/status         "online" / "offline" (retained; "offline" is the last will)
 
 Delivery: messages are consumed with QoS 1 over a persistent session (fixed client id, clean_session off)
@@ -38,14 +42,14 @@ from typing import Optional
 
 import paho.mqtt.client as mqtt
 
-from . import db, ingest, pipeline
+from . import db, ingest, pipeline, work_orders
 
 log = logging.getLogger("pdm.mqtt")
 
 ROOT = "pdm/v1"
 ASSET_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 INBOUND_KINDS = ("register", "readings", "failure")
-SUBSCRIPTIONS = [f"{ROOT}/assets/+/{kind}" for kind in INBOUND_KINDS]
+SUBSCRIPTIONS = [f"{ROOT}/assets/+/{kind}" for kind in INBOUND_KINDS] + [work_orders.status_topic("+")]
 STATUS_TOPIC = f"{ROOT}/service/status"
 
 
@@ -128,6 +132,9 @@ class Handler:
 
     def handle(self, t: str, payload: bytes) -> list:
         """Processes a message; returns [(topic, payload bytes, retain)] to publish. Never raises."""
+        parts = t.split("/")                      # pdm / v1 / work_orders / <id> / status
+        if len(parts) == 5 and "/".join(parts[:3]) == f"{ROOT}/work_orders" and parts[4] == "status":
+            return self._work_order_status(parts[3], payload)
         parsed = self.parse_topic(t)
         if parsed is None:
             return []
@@ -179,6 +186,24 @@ class Handler:
             raise ingest.IngestError("failure needs an object with ts")
         state = ingest.report_failure(asset_id, body["ts"], body.get("age"), body.get("mode"), self.db_path)
         return [self._state(asset_id, state)]
+
+    def _work_order_status(self, work_order_id, payload):
+        if not work_orders.WORK_ORDER_ID.match(work_order_id):
+            return []
+        error, code = None, "invalid"
+        try:
+            work_orders.confirm(work_order_id, json.loads(payload), self.db_path)
+        except (ValueError, UnicodeDecodeError) as e:
+            error = str(e) if not isinstance(e, json.JSONDecodeError) else "payload is not valid JSON"
+        except KeyError:
+            error, code = f"no work order {work_order_id}", "not_found"
+        except Exception:                                    # a bad message must never stop the service
+            log.exception("internal error handling the status of %s", work_order_id)
+            error, code = "internal error", "internal"
+        if error is None:
+            return []
+        body = json.dumps({"error": error, "code": code}).encode()
+        return [(f"{ROOT}/work_orders/{work_order_id}/rejected", body, False)]
 
     # -- outbound
     @staticmethod
