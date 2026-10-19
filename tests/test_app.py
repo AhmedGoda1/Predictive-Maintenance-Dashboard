@@ -42,6 +42,7 @@ def test_fleet_playback_runs_to_the_end_and_resets(app):
     app.button(key="fleet_play_btn").click().run()                      # plays tick by tick until 100%, then stops
     assert not app.exception
     assert app.slider(key="fleet_pct").value == 100 and not app.session_state["fleet_playing"]
+    assert app.button(key="fleet_play_btn").label == "▶ Play"             # the button names what a click will do
     assert _metrics(app)["⚫ Failed"] == "1"                              # the same snapshot as the latest readings
     app.button(key="fleet_reset_btn").click().run()
     assert app.slider(key="fleet_pct").value == 0 and _metrics(app)["⚫ Failed"] == "0"
@@ -77,6 +78,15 @@ def test_replay_position_moves_the_asset(app):
     app.radio(key="view").set_value("Asset detail").run()
     app.slider(key="pos_FD001-test-021").set_value(40).run()
     assert not app.exception and _metrics(app)["Age"] == "40 cycles"
+
+
+def test_asset_replay_button_names_its_next_action(app):
+    app.session_state["selected_asset"] = "MTR_01"
+    app.radio(key="view").set_value("Asset detail").run()
+    assert app.button(key="play_btn_MTR_01").label == "▶ Play"
+    app.button(key="play_btn_MTR_01").click().run()                     # replays from the start to the end, then stops
+    assert not app.exception and not app.session_state["playing_MTR_01"]
+    assert app.button(key="play_btn_MTR_01").label == "▶ Play"
 
 
 def test_charts_build_for_every_type_and_view(built_db, monkeypatch):

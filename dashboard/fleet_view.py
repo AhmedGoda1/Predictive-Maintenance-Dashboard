@@ -28,25 +28,33 @@ def _open_selected():
         st.session_state["fleet_playing"] = False
 
 
+def _toggle_play():
+    """Play / Pause click. A callback runs before the page is drawn, so the button then shows its next action."""
+    st.session_state["fleet_playing"] = not st.session_state["fleet_playing"]
+    if st.session_state["fleet_playing"] and st.session_state.get("fleet_pct", 100) >= 100:
+        st.session_state["fleet_pct"] = 0
+
+
+def _reset_play():
+    st.session_state["fleet_playing"] = False
+    st.session_state["fleet_pct"] = 0
+
+
 def _playback_controls(container):
     """Play / pause / reset and a speed choice for the fleet snapshot. Advances `fleet_pct` while playing."""
     st.session_state.setdefault("fleet_playing", False)
     st.session_state.setdefault("fleet_step", st.session_state.get("_fleet_step", 2))
-    play_col, reset_col, speed_col = container.columns([1, 1, 1.4], vertical_alignment="bottom")
-    if play_col.button("⏸ Pause" if st.session_state["fleet_playing"] else "▶ Play", width="stretch",
-                       key="fleet_play_btn", help="Replays the whole fleet through its recorded life."):
-        st.session_state["fleet_playing"] = not st.session_state["fleet_playing"]
-        if st.session_state["fleet_playing"] and st.session_state["fleet_pct"] >= 100:
-            st.session_state["fleet_pct"] = 0
-    if reset_col.button("⏮ Reset", width="stretch", key="fleet_reset_btn"):
-        st.session_state["fleet_playing"] = False
-        st.session_state["fleet_pct"] = 0
-    step = speed_col.select_slider("Speed (% per tick)", options=PLAY_STEPS, key="fleet_step")
-    st.session_state["_fleet_step"] = step
-    if st.session_state["fleet_playing"]:
-        st.session_state["fleet_pct"] = min(100, st.session_state["fleet_pct"] + step)
+    if st.session_state["fleet_playing"]:          # advance before drawing, so the button shows Play once it stops
+        st.session_state["fleet_pct"] = min(100, st.session_state["fleet_pct"] + st.session_state["fleet_step"])
         if st.session_state["fleet_pct"] >= 100:
             st.session_state["fleet_playing"] = False
+    play_col, reset_col, speed_col = container.columns([1, 1, 1.4], vertical_alignment="bottom")
+    play_col.button("⏸ Pause" if st.session_state["fleet_playing"] else "▶ Play", width="stretch",
+                    key="fleet_play_btn", on_click=_toggle_play,
+                    help="Replays the whole fleet through its recorded life.")
+    reset_col.button("⏮ Reset", width="stretch", key="fleet_reset_btn", on_click=_reset_play)
+    step = speed_col.select_slider("Speed (% per tick)", options=PLAY_STEPS, key="fleet_step")
+    st.session_state["_fleet_step"] = step
 
 
 def _rul_text(row) -> str:

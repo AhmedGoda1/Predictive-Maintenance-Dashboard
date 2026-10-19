@@ -16,6 +16,19 @@ SOURCES = {
 }
 
 
+def _toggle_replay(asset_id: str, n: int):
+    """Play / Pause click. A callback runs before the page is drawn, so the button then shows its next action."""
+    pos_key, play_key = f"pos_{asset_id}", f"playing_{asset_id}"
+    st.session_state[play_key] = not st.session_state[play_key]
+    if st.session_state[play_key] and st.session_state[pos_key] >= n:
+        st.session_state[pos_key] = 1
+
+
+def _reset_replay(asset_id: str):
+    st.session_state[f"playing_{asset_id}"] = False
+    st.session_state[f"pos_{asset_id}"] = 1
+
+
 def _replay_controls(asset_id: str, n: int):
     """Play / pause / reset and a position slider in the sidebar. Returns the current position (1..n)."""
     pos_key, play_key, n_key = f"pos_{asset_id}", f"playing_{asset_id}", f"n_{asset_id}"
@@ -25,19 +38,16 @@ def _replay_controls(asset_id: str, n: int):
     if previous_n is not None and n > previous_n and st.session_state[pos_key] >= previous_n:
         st.session_state[pos_key] = n                  # a live asset grew while the view was at its end: keep following it
     st.session_state[n_key] = n
-    play_col, reset_col = st.sidebar.columns(2)
-    if play_col.button("⏸ Pause" if st.session_state[play_key] else "▶ Play", width="stretch", key=f"play_btn_{asset_id}"):
-        st.session_state[play_key] = not st.session_state[play_key]
-        if st.session_state[play_key] and st.session_state[pos_key] >= n:
-            st.session_state[pos_key] = 1
-    if reset_col.button("⏮ Reset", width="stretch", key=f"reset_btn_{asset_id}"):
-        st.session_state[play_key] = False
-        st.session_state[pos_key] = 1
-    step = st.sidebar.select_slider("Replay speed (readings per tick)", options=[1, 2, 5, 10], value=5)
-    if st.session_state[play_key]:
-        st.session_state[pos_key] = min(n, st.session_state[pos_key] + step)
+    st.session_state.setdefault("replay_step", 5)
+    if st.session_state[play_key]:                   # advance before drawing, so the button shows Play once it stops
+        st.session_state[pos_key] = min(n, st.session_state[pos_key] + st.session_state["replay_step"])
         if st.session_state[pos_key] >= n:
             st.session_state[play_key] = False
+    play_col, reset_col = st.sidebar.columns(2)
+    play_col.button("⏸ Pause" if st.session_state[play_key] else "▶ Play", width="stretch", key=f"play_btn_{asset_id}",
+                    on_click=_toggle_replay, args=(asset_id, n))
+    reset_col.button("⏮ Reset", width="stretch", key=f"reset_btn_{asset_id}", on_click=_reset_replay, args=(asset_id,))
+    st.sidebar.select_slider("Replay speed (readings per tick)", options=[1, 2, 5, 10], key="replay_step")
     st.sidebar.slider("Replay position (reading #)", 1, n, key=pos_key)
     return st.session_state[pos_key], st.session_state[play_key]
 
