@@ -6,6 +6,12 @@ interval, and shows them in a dashboard.
 
 **Live dashboard:** https://predictive-maintenance-dashboard-3ldxwrb9s9av4egmvykm9k.streamlit.app
 
+Login: admin
+pw: admin
+or
+Login: technician
+pw: technician
+
 ## Architecture
 
 ```
