@@ -1,0 +1,179 @@
+import pytest
+
+import data_source as ds
+from pdm import db
+
+
+@pytest.fixture
+def fleet(built_db, monkeypatch):
+    monkeypatch.setattr(db, "DB_NAME", built_db)
+    return ds.load_fleet()
+
+
+def test_snapshot_is_ordered_by_maintenance_priority(fleet):
+    snap = ds.snapshot(fleet, 1.0)
+    assert len(snap) == 21
+    assert snap["status"].map(ds.STATUS_RANK).is_monotonic_decreasing       # worst status first
+    assert snap["asset_id"].iloc[0] == "MTR_01" and snap["status"].iloc[0] == "Failed"
+    critical = snap[snap["status"] == "Critical"]
+    assert critical["rul_pred"].is_monotonic_increasing                     # shortest remaining life first
+
+
+def test_snapshot_replays_the_fleet_through_its_life(fleet):
+    start, end = ds.snapshot(fleet, 0.0), ds.snapshot(fleet, 1.0)
+    assert (start["position"] == 1).all() and (end["position"] == end["n_readings"]).all()
+    assert (start["status"] == "Healthy").all() and (start["open_alerts"] == 0).all()
+    counts = ds.status_counts(end)
+    assert counts["Critical"] > 0 and counts["Failed"] == 1 and sum(counts.values()) == 21
+    assert end["open_alerts"].sum() > 0
+
+
+def test_snapshot_clamps_fraction(fleet):
+    assert (ds.snapshot(fleet, 5)["position"] == ds.snapshot(fleet, 1)["position"]).all()
+    assert (ds.snapshot(fleet, -1)["position"] == 1).all()
+
+
+def test_snapshot_status_tracks_true_remaining_life(fleet):
+    snap = ds.snapshot(fleet, 1.0)
+    engines = snap[snap["type_id"] == "turbofan_engine"]
+    mean_true = engines.groupby("status")["rul_true"].mean()
+    assert mean_true["Critical"] < mean_true["Warning"] < mean_true["Healthy"]
+    assert (engines["rul_low"] <= engines["rul_pred"]).all() and (engines["rul_pred"] <= engines["rul_high"]).all()
+
+
+def test_units_are_shown_per_asset_type():
+    assert ds.format_amount(120, "brushed_dc_motor") == "2 min"           # stored in seconds
+    assert ds.format_amount(47, "turbofan_engine") == "47 cycles"
+    assert ds.format_amount(float("nan"), "turbofan_engine") == "n/a"
+    assert ds.format_amount(None, "turbofan_engine") == "n/a"
+
+
+def test_rul_at_the_training_cap_reads_as_at_least():
+    assert ds.format_rul(125.0, "turbofan_engine") == "≥ 125 cycles"
+    assert ds.format_rul(59.0, "turbofan_engine") == "59 cycles"
+    assert ds.format_rul(300.0, "brushed_dc_motor") == "5 min"             # no cap for the motor
+    assert ds.format_rul(float("nan"), "turbofan_engine") == "n/a"
+
+
+def test_load_engine_asset(fleet, built_db, monkeypatch):
+    a = ds.load_asset("FD001-test-021")
+    assert a.method == "Learned model" and a.model["kind"] == "learned" and a.model["model_id"] == "turbofan_FD001"
+    assert a.model["metrics"]["test"]["rmse"] > 0
+    assert a.data["rul_low_disp"].notna().all()
+    assert a.data["rul_true_disp"].iloc[-1] == pytest.approx(a.failure["age"] - a.data["age"].iloc[-1])
+
+
+def test_load_motor_asset(fleet):
+    a = ds.load_asset("MTR_01")
+    assert a.method == "Experimental (single run)" and a.model["kind"] == "single_run_experimental"
+    assert "rul_mae_forward" in a.model["metrics"]
+    assert a.data["rul_low"].isna().all()                                 # no interval without a validated model
+    assert a.data["age_disp"].iloc[-1] == pytest.approx(a.data["age"].iloc[-1] / 60)   # minutes
+
+
+def test_models_table_lists_both_models(fleet):
+    table = ds.models_table(fleet).set_index("Model")
+    assert set(table.index) == {"motor_single_run", "turbofan_FD001"}
+    assert table.loc["turbofan_FD001", "Interval coverage"] == "0.73"
+    assert table.loc["motor_single_run", "Test RMSE"] == "n/a"             # nothing to evaluate on held-out assets
+
+
+def test_stale_database_from_an_older_version_is_rebuilt(tmp_path, monkeypatch):
+    """A deployed app keeps its database file across code updates; an old-schema file must be replaced."""
+    import sqlite3
+    path = tmp_path / "maintenance.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE machines (machine_id TEXT PRIMARY KEY, name TEXT)")
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(db, "DB_NAME", path)
+    calls = []
+
+    def fake_build(db_path=None, **kwargs):
+        calls.append(1)
+        db.init_db(reset=True)
+        db.upsert_asset("A1", "brushed_dc_motor", "x")
+        db.mark_current()
+
+    monkeypatch.setattr(ds.pipeline, "build", fake_build)
+    ds.ensure_db()
+    assert calls == [1] and db.is_current()
+    ds.ensure_db()                                          # a current database is left alone
+    assert calls == [1]
+
+
+def test_load_fleet_recovers_from_a_stale_database(tmp_path, monkeypatch):
+    """The reported failure: 'no such table: assets' when the old database file was still there."""
+    import sqlite3
+    path = tmp_path / "maintenance.db"
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE machines (machine_id TEXT PRIMARY KEY, name TEXT)")
+    conn.commit()
+    conn.close()
+    monkeypatch.setattr(db, "DB_NAME", path)
+    fleet = ds.load_fleet()
+    assert len(fleet.assets) == 21
+
+
+def test_readings_that_are_stored_but_not_scored_yet_are_not_shown(live_db, monkeypatch):
+    """Under live ingestion the newest readings are stored a moment before they are scored."""
+    from pdm import ingest
+    from test_ingest import engine_rows
+    monkeypatch.setattr(db, "DB_NAME", live_db)
+    ingest.register_asset("E1", "turbofan_engine", source="NASA C-MAPSS FD001", db_path=live_db)
+    rows, _ = engine_rows(n=40)
+    ingest.ingest_readings("E1", rows[:30], db_path=live_db)
+    ingest.ingest_readings("E1", rows[30:], db_path=live_db, score=False)          # stored, scoring still pending
+    a = ds.load_asset("E1")
+    assert len(a.data) == 30 and a.data["status"].notna().all()
+    assert len(db.get_series("E1", live_db)) == 40
+    ingest.score_asset("E1", live_db)
+    assert len(ds.load_asset("E1").data) == 40
+
+
+def test_fleet_snapshot_lists_learning_assets_last(live_db, monkeypatch):
+    from pdm import ingest
+    from test_ingest import engine_rows
+    monkeypatch.setattr(db, "DB_NAME", live_db)
+    ingest.register_asset("NEW", "turbofan_engine", source="NASA C-MAPSS FD001", metadata={"live": True}, db_path=live_db)
+    ingest.register_asset("E1", "turbofan_engine", source="NASA C-MAPSS FD001", db_path=live_db)
+    ingest.ingest_readings("NEW", engine_rows(n=5)[0], db_path=live_db)
+    ingest.ingest_readings("E1", engine_rows(n=30)[0], db_path=live_db)
+    snap = ds.snapshot(ds.load_fleet(), 1.0)
+    assert list(snap["asset_id"]) == ["E1", "NEW"] and list(snap["status"]) == ["Healthy", "Learning"]
+    new = snap.set_index("asset_id").loc["NEW"]
+    assert new["live"] and new["n_readings"] == 5 and "5/20" in new["method"]
+    assert snap.set_index("asset_id").loc["E1", "live"]            # registered through ingestion, not loaded from a dataset
+
+
+def test_recorded_demo_assets_are_not_labelled_live(fleet):
+    snap = ds.snapshot(fleet, 1.0).set_index("asset_id")
+    assert not snap["live"].any()                                  # everything in the demo database was loaded from datasets
+
+
+def test_an_empty_database_made_by_the_ingestion_service_is_filled_in_place(tmp_path, monkeypatch):
+    """The service creates the database before anything arrives. The dashboard must add the demo assets to that
+    file, not delete it and start over (the service may be writing to it)."""
+    path = tmp_path / "maintenance.db"
+    db.init_db(path)
+    db.mark_current(path)
+    db.save_metrics("written-by-another-process", {"x": 1.0}, path)    # something a deletion would take with it
+    monkeypatch.setattr(db, "DB_NAME", path)
+    ds.ensure_db()
+    assert db.has_assets() and len(db.list_assets()) == 21
+    assert db.get_metrics("written-by-another-process") == {"x": 1.0}
+
+
+def test_live_versus_recorded_is_read_from_an_explicit_marker():
+    assert ds._is_live({}) is True                                     # arrived through ingestion
+    assert ds._is_live({"recorded": True, "split": "test"}) is False   # loaded by a dataset loader
+    assert ds._is_live({"split": "test"}) is False                     # databases built before the marker existed
+    assert ds._is_live({"live": True}) is True
+
+
+def test_a_device_that_claims_to_be_recorded_is_still_shown_as_live(live_db, monkeypatch):
+    from pdm import ingest
+    monkeypatch.setattr(db, "DB_NAME", live_db)
+    ingest.register_asset("sneaky", "turbofan_engine", metadata={"recorded": True, "split": "train"}, db_path=live_db)
+    snap = ds.snapshot(ds.load_fleet(), 1.0).set_index("asset_id")
+    assert snap.loc["sneaky", "live"]
