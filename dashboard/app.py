@@ -141,7 +141,7 @@ def admin_dashboard():
     st.session_state.setdefault("selected_asset", ds.snapshot(fleet, 1.0)["asset_id"].iloc[0])
 
     present = presentation.active()
-    views = presentation.VIEWS if present else ["Fleet", "Asset detail"]
+    views = presentation.views() if present else ["Fleet", "Asset detail"]
     if st.session_state["view"] not in views:
         st.session_state["view"] = "Fleet"
     st.sidebar.title(f"🛠️ {presentation.brand('customer')}" if present else "🛠️ Maintenance Portal")
@@ -155,7 +155,9 @@ def admin_dashboard():
         presentation.banner()
         presentation.tour_card(fleet)
     tab, tab_key = presentation.tab() if present else (None, None)
-    st.sidebar.radio("View", views if present else ["Fleet", "Asset detail"], key="view")
+    if st.session_state["view"] not in (presentation.views() if present else ["Fleet", "Asset detail"]):
+        st.session_state["view"] = "Fleet"            # the audience or the toggle changed the list of views
+    st.sidebar.radio("View", presentation.views() if present else ["Fleet", "Asset detail"], key="view")
     st.sidebar.markdown("---")
 
     view = st.session_state["view"]
@@ -182,7 +184,7 @@ def admin_dashboard():
         st.caption("This is the page a technician sees after logging in.")
         work_order_view.render(USER["name"] or "presenter")
     else:
-        presentation.closing_page(fleet)
+        presentation.page(view, fleet)
 
 
 if USER["role"] == "maintenance":

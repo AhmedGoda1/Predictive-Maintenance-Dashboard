@@ -1,15 +1,19 @@
-"""Presentation mode: the dashboard as a pitch to a prospective customer.
+"""Presentation mode: the dashboard as a pitch to a prospective customer, or as a course project presentation.
 
-Turned on from the sidebar (admins only) or with a link such as `?present=1&customer=Acme%20Aero`. It
+Turned on from the sidebar (admins only) or with a link such as `?present=1&customer=Acme%20Aero`
+(`&audience=course` for the course presentation). It
 - brands the app with the customer's name, tagline, logo and accent colour (the Customize panel),
 - gives assets plain names ("Engine 07" instead of "FD001-test-071"),
 - hides the developer panels (MQTT, auto-refresh, model internals in the tables) and the Streamlit chrome,
 - runs a guided tour: Next / Back moves the app itself to the view, asset, tab and replay position of each step.
 
+The course presentation adds the problem, the architecture, the model's results and its limitations to the tour.
+
 Everything lives in the viewer's session, so one presenter never changes what other users see. The data is the
 recorded replay, which works with nothing else running.
 """
 import html
+import json
 from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlencode
@@ -20,6 +24,9 @@ import streamlit as st
 import data_source as ds
 
 VIEWS = ["Fleet", "Asset detail", "Technician view", "Next steps"]
+COURSE_VIEWS = ["Introduction", "Architecture", "Fleet", "Asset detail", "Technician view", "Results", "Wrap-up"]
+AUDIENCES = {"pitch": "Customer pitch", "course": "Course presentation"}
+METRICS_FILE = ds.ROOT / "models" / "cmapss_metrics.json"
 ALL_TYPES = "All types"          # the fleet view's "no type filter" value
 
 DEFAULTS = {
@@ -29,12 +36,21 @@ DEFAULTS = {
     "logo": "",
     "site": "",
     "cta": "Suggested next step: a pilot on a handful of your assets.",
+    "team": "",
+    "audience": "pitch",
+}
+# the course presentation starts from these instead of the customer wording
+COURSE_DEFAULTS = {
+    "customer": "Predictive Maintenance for IoT",
+    "tagline": "Course project: from sensor data to a finished repair",
+    "cta": "Thank you. Questions?",
 }
 # plain nouns for the asset types; any other registered type falls back to its registry name
 TYPE_NOUNS = {"turbofan_engine": "Engine", "brushed_dc_motor": "Drive motor", "li_ion_battery": "Battery pack"}
-PROFILE_FIELDS = ["customer", "tagline", "accent", "logo", "site", "cta"]
+PROFILE_FIELDS = ["audience", "customer", "tagline", "team", "accent", "logo", "site", "cta"]
 NEW_PROFILE = "➕ New customer"
-QUERY_KEYS = {"customer": "customer", "tagline": "tagline", "accent": "accent", "logo": "logo", "site": "site"}
+QUERY_KEYS = {"audience": "audience", "customer": "customer", "tagline": "tagline", "team": "team",
+              "accent": "accent", "logo": "logo", "site": "site"}
 
 
 @dataclass(frozen=True)
@@ -89,6 +105,54 @@ TOUR = [
          "Next steps"),
 ]
 
+COURSE_TOUR = [
+    Step("The problem",
+         "Machines fail without warning, and fixed maintenance intervals replace parts that still had life left. "
+         "Our goal: predict failures from sensor data early enough to plan the repair.",
+         "Introduction"),
+    Step("How the system works",
+         "Sensors publish readings over MQTT. An ingestion service validates, stores and scores them, the dashboard "
+         "shows the result, and a work order closes the loop to the technician.",
+         "Architecture"),
+    Step("From sensor readings to one health score",
+         "Each asset's health channels are compared with a baseline from its own first, healthy readings. The "
+         "deviations become a health index from 0 to 100 and a status. This is the fleet early in its life.",
+         "Fleet", fleet_pct=15, tab=FLEET_TABS[0]),
+    Step("Replaying recorded run-to-failure data",
+         "No real machines are connected, so we replay recorded data: NASA C-MAPSS turbofan engines and a brushed "
+         "DC motor, scored as if they were live. Watch the assets degrade.",
+         "Fleet", fleet_pct=15, fleet_play=True, tab=FLEET_TABS[0]),
+    Step("Ranking by urgency",
+         "A learned model estimates each engine's remaining useful life with an 80% prediction interval. Assets are "
+         "ranked by status, then by the shortest remaining life.",
+         "Fleet", fleet_pct=100, tab=FLEET_TABS[0]),
+    Step("Alerts with a suggested action",
+         "Each status change raises an alert that says what was detected and what to do about it.",
+         "Fleet", fleet_pct=100, tab=FLEET_TABS[1]),
+    Step("One engine, from new to failure",
+         "The health index falls as the engine wears. The remaining-life estimate and its interval follow the "
+         "actual remaining life, which we know because the data was recorded to failure.",
+         "Asset detail", asset_play=True, tab=ASSET_TABS[0]),
+    Step("From alert to work order",
+         "An alert becomes a work order with one click. It goes to the technician page, or as a web request to an "
+         "external maintenance system (we used Node-RED). Dispatching is a real write to the shared database.",
+         "Asset detail", tab=ASSET_TABS[2]),
+    Step("The technician's page",
+         "A maintenance login sees only the open work orders, most urgent first, and marks them started, completed "
+         "or rejected.",
+         "Technician view"),
+    Step("Closing the loop",
+         "The technician's update comes back to the alert, so every step from sensor reading to finished repair is "
+         "on record.",
+         "Asset detail", tab=ASSET_TABS[2]),
+    Step("Results: how accurate is the model?",
+         "Tested on engines the model never saw, and compared with two simple baselines.",
+         "Results"),
+    Step("Limitations and future work",
+         "What the results do not show yet, and what we would do next.",
+         "Wrap-up"),
+]
+
 
 # ---------------------------------------------------------------- state
 def init() -> None:
@@ -104,12 +168,31 @@ def init() -> None:
     for field, query in QUERY_KEYS.items():
         ss.setdefault(f"brand_{field}", params.get(query) or DEFAULTS[field])
     ss.setdefault("brand_cta", DEFAULTS["cta"])
+    if ss["brand_audience"] not in AUDIENCES:
+        ss["brand_audience"] = DEFAULTS["audience"]
+    if ss["brand_audience"] == "course":
+        for field, value in COURSE_DEFAULTS.items():
+            if ss.get(f"brand_{field}") == DEFAULTS[field]:
+                ss[f"brand_{field}"] = value
     accent = "#" + ss["brand_accent"].lstrip("#")         # a link may leave out the "#" (it must be escaped there)
     ss["brand_accent"] = accent if _valid_color(accent) else DEFAULTS["accent"]
 
 
 def active() -> bool:
     return bool(st.session_state.get("present"))
+
+
+def course() -> bool:
+    """True for the course presentation, False for the customer pitch."""
+    return brand("audience") == "course"
+
+
+def views() -> list:
+    return COURSE_VIEWS if course() else VIEWS
+
+
+def tour() -> list:
+    return COURSE_TOUR if course() else TOUR
 
 
 def brand(field: str) -> str:
@@ -165,9 +248,12 @@ def load_profile() -> None:
     ss = st.session_state
     pick = ss.get("profile_pick")
     profile = _profiles().get(pick) if pick != NEW_PROFILE else {
-        **DEFAULTS, "customer": "", "nouns": {}, "logo_bytes": None}
+        **DEFAULTS, **(COURSE_DEFAULTS if course() else {}), "audience": brand("audience"), "customer": "",
+        "nouns": {}, "logo_bytes": None}
     if profile is None:
         return
+    if profile.get("audience", DEFAULTS["audience"]) != brand("audience"):
+        end_tour()                          # the two audiences have different tours
     for f in PROFILE_FIELDS:
         ss[f"brand_{f}"] = profile.get(f, DEFAULTS[f])
     ss["brand_logo_bytes"] = profile.get("logo_bytes")
@@ -211,6 +297,8 @@ def import_profiles() -> None:
                 p["logo_bytes"] = base64.b64decode(p["logo_bytes"])
             if p.get("accent") and not _valid_color(p["accent"]):
                 p["accent"] = DEFAULTS["accent"]
+            if p.get("audience") not in AUDIENCES:
+                p["audience"] = DEFAULTS["audience"]
             _profiles()[str(name)] = p
         st.session_state["_profile_saved"] = f"{len(data)} profile(s) loaded"
     except (ValueError, TypeError, AttributeError):
@@ -229,12 +317,37 @@ def _sync_link() -> None:
         st.session_state.pop("tour_step", None)
 
 
+def _audience_changed() -> None:
+    """Swaps the untouched default wording for the other audience's, and restarts the tour (it differs)."""
+    ss = st.session_state
+    to_course = course()
+    for field, value in COURSE_DEFAULTS.items():
+        old, new = (DEFAULTS[field], value) if to_course else (value, DEFAULTS[field])
+        if ss.get(f"brand_{field}") == old:
+            ss[f"brand_{field}"] = new
+    end_tour()
+    _sync_link()
+
+
+def _checklist() -> None:
+    with st.sidebar.expander("✅ Before you present", expanded=False):
+        st.markdown(
+            "- Do a full dry run of the tour on the computer and screen you will present with.\n"
+            "- **Dispatch, Start work and Complete are real actions on the shared database**: everyone using the "
+            "app sees them. Dispatch the work order once in the dry run, then only point at it during the talk.\n"
+            "- Save the profile and press *Download profiles*: a browser refresh loses unsaved settings.\n"
+            "- Keep the presentation link (below the profile settings) to open everything in one click.")
+
+
 def sidebar(fleet: ds.Fleet) -> None:
     """The on/off switch and, while on, the Customize panel and the tour button."""
     st.sidebar.toggle("🎤 Presentation mode", key="present", on_change=_sync_link,
-                      help="A clean, branded layout and a guided tour for showing the product to a customer.")
+                      help="A clean, branded layout and a guided tour, for a customer pitch or a course presentation.")
     if not active():
         return
+    st.sidebar.radio("Audience", list(AUDIENCES), key="brand_audience", format_func=AUDIENCES.get,
+                     horizontal=True, on_change=_audience_changed)
+    is_course = course()
     if st.session_state.get("tour_step") is None:
         st.sidebar.button("▶ Start guided tour", key="tour_start", type="primary", width="stretch",
                           on_click=go_to, args=(0, fleet))
@@ -243,15 +356,20 @@ def sidebar(fleet: ds.Fleet) -> None:
     names = [*_profiles(), NEW_PROFILE]
     if st.session_state.get("profile_pick") not in names:
         st.session_state["profile_pick"] = names[0]
-    st.sidebar.selectbox("Customer", names, key="profile_pick", on_change=load_profile,
-                         help="Switch between the customers you saved; the whole app follows.")
-    with st.sidebar.expander("🎨 Customize for this customer", expanded=False):
-        st.caption("Changes show immediately. Save to switch back to this customer later.")
-        st.text_input("Customer name", key="brand_customer", on_change=_sync_link)
-        st.text_input("Tagline", key="brand_tagline", on_change=_sync_link)
-        st.text_input("Site name (optional)", key="brand_site", on_change=_sync_link,
-                      placeholder="e.g. Hamburg hangar 2")
-        st.color_picker("Accent colour", key="brand_accent", on_change=_sync_link)
+    st.sidebar.selectbox("Profile" if is_course else "Customer", names, key="profile_pick", on_change=load_profile,
+                         help="Switch between the profiles you saved; the whole app follows.")
+    with st.sidebar.expander("🎨 Customize this presentation" if is_course else "🎨 Customize for this customer",
+                             expanded=False):
+        st.caption("Changes show immediately. Save to switch back to this profile later.")
+        st.text_input("Project title" if is_course else "Customer name", key="brand_customer", on_change=_sync_link)
+        st.text_input("Subtitle" if is_course else "Tagline", key="brand_tagline", on_change=_sync_link)
+        if is_course:
+            st.text_input("Team members", key="brand_team", on_change=_sync_link, placeholder="e.g. Joni, Ahmed, ...")
+        st.text_input("Course and university (optional)" if is_course else "Site name (optional)", key="brand_site",
+                      on_change=_sync_link,
+                      placeholder="e.g. IoT project course, University of ..." if is_course else "e.g. Hamburg hangar 2")
+        st.color_picker("Accent colour (e.g. your university's)" if is_course else "Accent colour", key="brand_accent",
+                        on_change=_sync_link)
         st.text_input("Logo URL (optional)", key="brand_logo", on_change=_sync_link,
                       placeholder="https://.../logo.png")
         st.file_uploader("...or upload a logo", type=["png", "jpg", "jpeg", "svg", "webp"], key="brand_logo_file",
@@ -260,8 +378,8 @@ def sidebar(fleet: ds.Fleet) -> None:
         for type_id in sorted(fleet.assets["type_id"].unique()):
             st.session_state.setdefault(f"noun_{type_id}", type_noun(type_id))
             st.text_input(ds.registry.get_type(type_id).name, key=f"noun_{type_id}")
-        st.text_area("Closing call to action", key="brand_cta", height=90)
-        st.button("💾 Save customer profile", key="profile_save", width="stretch", type="primary",
+        st.text_area("Closing line" if is_course else "Closing call to action", key="brand_cta", height=90)
+        st.button("💾 Save profile" if is_course else "💾 Save customer profile", key="profile_save", width="stretch", type="primary",
                   on_click=save_profile)
         if "_profile_saved" in st.session_state:
             st.caption(f"Saved: {st.session_state.pop('_profile_saved')}")
@@ -276,6 +394,7 @@ def sidebar(fleet: ds.Fleet) -> None:
         st.code(base.split("?")[0] + "?" + urlencode({"present": 1, **{q: brand(f) for f, q in QUERY_KEYS.items()
                                                                           if brand(f) != DEFAULTS[f]}}),
                 language=None, wrap_lines=True)
+    _checklist()
 
 
 # ---------------------------------------------------------------- look
@@ -302,8 +421,9 @@ def banner() -> None:
     """The customer's logo, name and tagline at the top of every page."""
     logo = st.session_state.get("brand_logo_bytes") or brand("logo")
     site = f" · {html.escape(brand('site'))}" if brand("site") else ""
+    team = f'<p>{html.escape(brand("team"))}</p>' if course() and brand("team") else ""
     text = (f'<div class="pm-banner"><h1>{html.escape(brand("customer"))}</h1>'
-            f'<p>{html.escape(brand("tagline"))}{site}</p></div>')
+            f'<p>{html.escape(brand("tagline"))}{site}</p>{team}</div>')
     if logo:
         left, right = st.columns([1, 9], vertical_alignment="center")
         try:
@@ -328,7 +448,7 @@ def focus_asset(fleet: ds.Fleet) -> str:
 def go_to(i: int, fleet: ds.Fleet) -> None:
     """Moves the app to tour step i (a button callback, so it runs before any widget is drawn)."""
     ss = st.session_state
-    step = TOUR[i]
+    step = tour()[i]
     ss["tour_step"] = i
     ss["view"] = step.view
     ss["fleet_type"] = ss["_fleet_type"] = ALL_TYPES
@@ -369,15 +489,15 @@ def tab() -> tuple:
 def tour_card(fleet: ds.Fleet) -> None:
     """The current step's talking point and the Back / Next buttons, above the page it explains."""
     i = st.session_state.get("tour_step")
-    if i is None:
+    if i is None or i >= len(tour()):
         return
-    step = TOUR[i]
+    step = tour()[i]
     with st.container(border=True):
-        st.html(f'<div class="pm-step">Step {i + 1} of {len(TOUR)}</div>')
+        st.html(f'<div class="pm-step">Step {i + 1} of {len(tour())}</div>')
         st.markdown(f"#### {step.title}\n{step.text}")
         back, nxt, end, _ = st.columns([1, 1, 1, 4])
         back.button("◀ Back", key="tour_back", width="stretch", disabled=i == 0, on_click=go_to, args=(i - 1, fleet))
-        if i + 1 < len(TOUR):
+        if i + 1 < len(tour()):
             nxt.button("Next ▶", key="tour_next", type="primary", width="stretch", on_click=go_to, args=(i + 1, fleet))
         end.button("End tour", key="tour_end", width="stretch", on_click=end_tour)
 
@@ -394,11 +514,153 @@ def closing_page(fleet: ds.Fleet) -> None:
         ("🔧 Fit your workflow", "Work orders go to the built-in technician page, or as a web request to the maintenance "
                                 "system you already use, which reports progress back."),
     ]
+    _cards(cards)
+    st.markdown("---")
+    st.markdown(f"### {brand('cta')}")
+
+
+# ---------------------------------------------------------------- course presentation pages
+def page(view: str, fleet: ds.Fleet) -> None:
+    """Draws one of presentation mode's own pages (the views that are not the dashboard itself)."""
+    {"Introduction": intro_page, "Architecture": architecture_page, "Results": results_page,
+     "Wrap-up": wrapup_page}.get(view, closing_page)(fleet)
+
+
+def _cards(cards: list) -> None:
     for col, (title, text) in zip(st.columns(len(cards)), cards):
         with col:
             st.html(f'<div class="pm-card"><h4>{html.escape(title)}</h4><p>{html.escape(text)}</p></div>')
+
+
+def intro_page(fleet: ds.Fleet) -> None:
+    st.title("The problem")
+    _cards([
+        ("💥 Unplanned failures", "A machine that breaks during operation stops production, and the repair is "
+                                 "rushed and expensive."),
+        ("📅 Fixed intervals waste life", "Maintaining on a fixed schedule replaces many parts that still had a "
+                                         "long life left, and still misses some failures."),
+        ("📈 The data is already there", "Machines carry sensors. Their readings drift as a part wears, long "
+                                        "before it fails."),
+    ])
+    st.markdown("---")
+    st.markdown("### Our goal")
+    st.markdown(
+        "Turn sensor data from any kind of equipment into:\n"
+        "1. a **health score** and a status anyone can read,\n"
+        "2. an estimate of the **remaining useful life**, with an honest uncertainty range,\n"
+        "3. **alerts** with a suggested action, and\n"
+        "4. a **work order** that reaches the technician and reports back when the repair is done.")
+    n = fleet.assets.groupby("type_id").size()
+    st.caption("Demo fleet: " + ", ".join(f"{count} × {type_noun(t).lower()}" for t, count in n.items())
+               + ", from public run-to-failure datasets.")
+
+
+def architecture_page(fleet: ds.Fleet) -> None:
+    st.title("How the system works")
+    accent = brand("accent") if _valid_color(brand("accent")) else DEFAULTS["accent"]
+    st.graphviz_chart(f"""digraph {{
+        rankdir=LR; bgcolor="transparent"; nodesep=0.35; ranksep=0.45;
+        node [shape=box, style="rounded,filled", fillcolor="#ffffff", color="{accent}", penwidth=2,
+              fontname="Helvetica", fontsize=12, margin="0.18,0.1"];
+        edge [color="#888888", fontname="Helvetica", fontsize=10, fontcolor="#666666"];
+        dev [label="Sensors / gateway\n(simulated from\nrecorded runs)"];
+        broker [label="MQTT broker\n(TLS, one login\nper device)"];
+        ingest [label="Ingestion service\nvalidate · store ·\nscore · alert"];
+        db [label="Database\n(asset-agnostic)", shape=cylinder];
+        dash [label="Dashboard\nfleet · asset ·\nwork orders"];
+        tech [label="Technician page\nor external CMMS\n(Node-RED)"];
+        dev -> broker [label="readings"]; broker -> ingest; ingest -> db; db -> dash;
+        dash -> tech [label="work order"]; tech -> db [label="status", style=dashed];
+    }}""", width="stretch")
+    _cards([
+        ("🩺 Health index", "Each health channel is compared with the asset's own healthy baseline from its first "
+                           "readings. The deviations become a 0–100 score; a status changes only after it holds for "
+                           "a few readings."),
+        ("⏳ Remaining useful life", "A gradient-boosted model trained on run-to-failure engines, using only past "
+                                    "readings, gives a point estimate and an 80% prediction interval."),
+        ("🧩 Any equipment", "Channels, units, limits and thresholds of each asset type live in one registry. A new "
+                            "type needs no dashboard changes."),
+    ])
+
+
+def _metrics() -> dict:
+    try:
+        return json.loads(METRICS_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def results_page(fleet: ds.Fleet) -> None:
+    import plotly.graph_objects as go
+    st.title("Results: how accurate is the model?")
+    results = _metrics()
+    if not results:
+        st.info("No evaluation results found. Run `python -m pdm.train` to create them.")
+        return
+    main = results.get("FD001") or next(iter(results.values()))
+    t, age = main["test"], main["baselines"]["age_only"]
+    st.markdown(f"**Remaining useful life of {main['n_test_engines']} test engines the model never saw** "
+                f"(NASA C-MAPSS {main['subset']}, in operating cycles)")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Average error (MAE)", f"{t['mae']:.1f} cycles",
+              delta=f"{t['mae'] - age['mae']:.1f} vs. age-only guess", delta_color="inverse")
+    c2.metric("RMSE", f"{t['rmse']:.1f} cycles",
+              delta=f"{t['rmse'] - age['rmse']:.1f} vs. age-only guess", delta_color="inverse")
+    c3.metric("80% interval contains the truth", f"{t['coverage']:.0%}",
+              delta=f"{(t['coverage'] - 0.8) * 100:+.0f} points vs. the 80% target", delta_color="normal")
+
+    subsets = sorted(results)
+    fig = go.Figure()
+    for name, label, color in [("model", "Our model", brand("accent") if _valid_color(brand("accent")) else
+                                DEFAULTS["accent"]),
+                               ("age_only", "Age-only guess", "#9aa5b1"),
+                               ("constant", "Constant guess", "#cfd6dd")]:
+        ys = [results[s]["test"]["rmse"] if name == "model" else results[s]["baselines"][name]["rmse"]
+              for s in subsets]
+        fig.add_bar(x=subsets, y=ys, name=label, marker_color=color, text=[f"{y:.0f}" for y in ys],
+                    textposition="outside")
+    fig.update_layout(barmode="group", height=330, margin=dict(l=10, r=10, t=40, b=10),
+                      title="RMSE in cycles on held-out engines (lower is better)",
+                      legend=dict(orientation="h", y=-0.15), yaxis_title="RMSE (cycles)")
+    left, right = st.columns([3, 2])
+    left.plotly_chart(fig, width="stretch")
+    regimes = {"FD001": "1 condition, 1 fault", "FD002": "6 conditions, 1 fault", "FD003": "1 condition, 2 faults",
+               "FD004": "6 conditions, 2 faults"}
+    right.dataframe(pd.DataFrame([{
+        "Subset": s, "Setting": regimes.get(s, ""), "Test engines": results[s]["n_test_engines"],
+        "RMSE": round(results[s]["test"]["rmse"], 1), "Coverage": f"{results[s]['test']['coverage']:.0%}",
+    } for s in subsets]), hide_index=True, width="stretch")
+    worst = min(results[s]["test"]["coverage"] for s in subsets)
+    best = max(results[s]["test"]["coverage"] for s in subsets)
+    right.caption(f"The model beats both baselines on every subset. Its 80% interval contains the true value "
+                  f"{worst:.0%}–{best:.0%} of the time, so it is somewhat overconfident. Six operating conditions "
+                  f"(FD002, FD004) are harder.")
+
+
+def wrapup_page(fleet: ds.Fleet) -> None:
+    st.title("Limitations and future work")
+    left, right = st.columns(2)
+    with left:
+        st.markdown("### Limitations")
+        st.markdown(
+            "- **Recorded data, not real machines.** The fleet is public run-to-failure data, replayed as live "
+            "over MQTT.\n"
+            "- **The motor has a single recorded run**, so its remaining-life estimate cannot be validated.\n"
+            "- **The 80% interval is overconfident**: it contains the truth less often than promised.\n"
+            "- **One model per asset type.** Accuracy is shown across engines of one type, not across types.\n"
+            "- **The health baseline assumes each asset starts healthy.**")
+    with right:
+        st.markdown("### Future work")
+        st.markdown(
+            "- Connect real sensors through a gateway in a small pilot.\n"
+            "- Collect more run-to-failure data for the motor and other equipment.\n"
+            "- Recalibrate the intervals so 80% really means 80%.\n"
+            "- Schedule repairs by cost: downtime, spare parts and technician time.\n"
+            "- Move from one database file to a time-series database for larger fleets.")
     st.markdown("---")
     st.markdown(f"### {brand('cta')}")
+    if brand("team"):
+        st.caption(brand("team"))
 
 
 def display_names(snap: pd.DataFrame, fleet: ds.Fleet) -> pd.DataFrame:
