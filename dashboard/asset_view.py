@@ -150,7 +150,8 @@ def _work_order_status(order: dict) -> None:
         st.caption("Waiting for the maintenance team to start it.")
 
 
-def render(a: ds.AssetData):
+def render(a: ds.AssetData, name: str = None, tab: str = None, tab_key: str = None):
+    """Draws one asset. `name` replaces its name and hides the ids (presentation mode); `tab` opens first."""
     t, data = a.type, a.data
     n = len(data)
     asset_id = a.asset["asset_id"]
@@ -163,16 +164,20 @@ def render(a: ds.AssetData):
     x_range = [data["age_disp"].min(), data["age_disp"].max()]
     _, unit = ds.unit_factor(t.type_id)
 
-    st.title(a.asset["name"])
-    st.caption(f"{t.name} · `{asset_id}`" + (" · **live feed**" if a.asset["metadata"].get("live") else "") +
-               f" · estimate produced by: **{a.method}** · "
-               f"reading {pos} of {n} at age {current['age_disp']:.0f} {unit}"
-               + (f" · {t.stress_label}" if t.stress_channel and current.get(t.stress_channel, 0) > t.stress_above else ""))
+    st.title(name or a.asset["name"])
+    if name:
+        st.caption(f"{t.name} · reading {pos} of {n} at age {current['age_disp']:.0f} {unit}")
+    else:
+        st.caption(f"{t.name} · `{asset_id}`" + (" · **live feed**" if a.asset["metadata"].get("live") else "") +
+                   f" · estimate produced by: **{a.method}** · "
+                   f"reading {pos} of {n} at age {current['age_disp']:.0f} {unit}"
+                   + (f" · {t.stress_label}" if t.stress_channel and current.get(t.stress_channel, 0) > t.stress_above else ""))
     components.render_kpi_row(current, t.type_id, a.method)
     st.markdown("---")
 
-    tab_overview, tab_sensors, tab_alerts, tab_model = st.tabs(
-        ["📊 Health Overview", "🔍 Sensor Inspector", "🚨 Alerts & Actions", "🧠 Model & Data"])
+    tab_names = ["📊 Health Overview", "🔍 Sensor Inspector", "🚨 Alerts & Actions", "🧠 Model & Data"]
+    tab_overview, tab_sensors, tab_alerts, tab_model = st.tabs(tab_names, default=tab if tab in tab_names else None,
+            key=f"tabs_{tab_key}" if tab_key else None)
 
     with tab_overview:
         left, right = st.columns([3, 1])

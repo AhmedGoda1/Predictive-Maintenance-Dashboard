@@ -13,5 +13,6 @@ Run locally from the repository root: `streamlit run dashboard/app.py`
 - `app.py`: navigation (Fleet / Asset detail)
 - `fleet_view.py`, `asset_view.py`: the two views (asset detail has its own replay controls)
 - `data_source.py`: database access for the app (uses the `pdm` package)
+- `presentation.py`: presentation mode for customer pitches (branding, customer profiles, guided tour)
 - `live_feed.py`: the demo feed and the embedded MQTT subscriber (when `PDM_MQTT_HOST` is set)
 - `components.py`, `utils.py`: KPI rows and charts

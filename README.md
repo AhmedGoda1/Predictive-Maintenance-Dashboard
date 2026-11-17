@@ -64,6 +64,24 @@ python -m pdm.train                     # optional: retrain / re-evaluate the RU
   the fleet view draws one RUL chart per type. Status colours always come with an icon and a label.
 - A new asset type appears in both views once it is registered; no dashboard code changes.
 
+### Presentation mode (for customer pitches)
+
+Switch on **🎤 Presentation mode** in the sidebar (admins), or open a link such as
+`?present=1&customer=Acme%20Aero&accent=%23c0392b&tagline=Keep%20every%20engine%20flying`. It turns the dashboard into
+a pitch for a prospective customer:
+
+- **Branding on the fly:** customer name, tagline, site, accent colour, logo (URL or upload), plain names for the asset
+  types ("Engine 07" instead of `FD001-test-071`) and the closing call to action, all editable during the meeting.
+- **Any number of customers:** save each customer as a profile and switch between them from the *Customer* box.
+  Profiles last while the browser tab is open; *Download profiles* / *Load profiles* carry them to another session.
+- **Clean layout:** hides the MQTT and refresh panels, the Streamlit toolbar and the model internals in the tables.
+- **Guided tour (9 steps):** Next / Back drives the app itself, focused on the fleet overview and the work-order loop:
+  fleet at a glance, the replay, the priority list, fleet-wide alerts, the asset most at risk, dispatching a work
+  order, the technician's page, the update coming back, and a closing *Next steps* page.
+
+It uses the recorded replay only, so it needs no broker or devices. All settings live in the presenter's own session.
+Dispatching and completing a work order during the tour are real actions on the shared database.
+
 ### Work orders
 
 "Dispatch Work Order" on an alert creates a work order. It goes on the maintenance team's page (see *Logins*
