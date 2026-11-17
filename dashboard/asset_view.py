@@ -206,6 +206,9 @@ def render(a: ds.AssetData, name: str = None, tab: str = None, tab_key: str = No
         if active.empty:
             st.success("No alerts so far. The asset is operating within healthy parameters.")
         orders = ds.work_orders(asset_id)
+        if name and not active.empty:
+            st.caption("⚠️ Dispatching, starting and completing a work order are real changes to the shared "
+                       "database: everyone using the app sees them.")
         for _, row in active.iterrows():
             with st.expander(f"{utils.STATUS_ICONS.get(row['status_level'], '⚠️')} {row['ts']:%Y-%m-%d %H:%M} · "
                              f"{row['status_level']} · {row['detected_issue']}",

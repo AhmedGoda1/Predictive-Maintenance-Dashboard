@@ -64,7 +64,7 @@ python -m pdm.train                     # optional: retrain / re-evaluate the RU
   the fleet view draws one RUL chart per type. Status colours always come with an icon and a label.
 - A new asset type appears in both views once it is registered; no dashboard code changes.
 
-### Presentation mode (for customer pitches)
+### Presentation mode (customer pitches and course presentations)
 
 Switch on **🎤 Presentation mode** in the sidebar (admins), or open a link such as
 `?present=1&customer=Acme%20Aero&accent=%23c0392b&tagline=Keep%20every%20engine%20flying`. It turns the dashboard into
@@ -78,6 +78,12 @@ a pitch for a prospective customer:
 - **Guided tour (9 steps):** Next / Back drives the app itself, focused on the fleet overview and the work-order loop:
   fleet at a glance, the replay, the priority list, fleet-wide alerts, the asset most at risk, dispatching a work
   order, the technician's page, the update coming back, and a closing *Next steps* page.
+
+**Course presentation:** set *Audience* to *Course presentation* (or add `&audience=course&team=...` to the link) for a
+12-step tour aimed at a course audience: the problem, the architecture, the health index and RUL model on the fleet,
+the work-order loop, the model's results on held-out C-MAPSS engines against two baselines, and limitations and future
+work. The profile then holds the project title, subtitle, team members, course and accent colour, and a *Before you
+present* checklist sits in the sidebar.
 
 It uses the recorded replay only, so it needs no broker or devices. All settings live in the presenter's own session.
 Dispatching and completing a work order during the tour are real actions on the shared database.
