@@ -43,5 +43,5 @@ Dataset: Helwig, N., Pignanelli, E., & Schütze, A. (2015).
 [Condition monitoring of hydraulic systems](https://doi.org/10.24432/C5CW21),
 UCI Machine Learning Repository. The included `FS1.txt` and `profile.txt`
 files are distributed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-
 The app displays those recorded labels. Use the chart to explore differences in flow between cycles.
+
