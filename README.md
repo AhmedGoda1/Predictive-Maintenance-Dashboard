@@ -80,10 +80,11 @@ a pitch for a prospective customer:
   order, the technician's page, the update coming back, and a closing *Next steps* page.
 
 **Course presentation:** set *Audience* to *Course presentation* (or add `&audience=course&team=...` to the link) for a
-12-step tour aimed at a course audience: the problem, the architecture, the health index and RUL model on the fleet,
-the work-order loop, the model's results on held-out C-MAPSS engines against two baselines, and limitations and future
-work. The profile then holds the project title, subtitle, team members, course and accent colour, and a *Before you
-present* checklist sits in the sidebar.
+15-step tour in the order of the course's demonstration: the problem, the users, the requirements and what was built,
+the architecture, the live demo (health index, replay, RUL ranking, alerts, one engine to failure, the work-order loop),
+testing (the automated test suite and the model's results on held-out C-MAPSS engines against two baselines) and
+lessons learned. The profile then holds the project title, subtitle, team members, course, accent colour and the
+lessons learned, and a *Before you present* checklist sits in the sidebar.
 
 It uses the recorded replay only, so it needs no broker or devices. All settings live in the presenter's own session.
 Dispatching and completing a work order during the tour are real actions on the shared database.

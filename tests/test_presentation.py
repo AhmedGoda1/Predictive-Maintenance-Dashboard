@@ -112,14 +112,24 @@ def test_course_link_opens_the_course_presentation(course_app):
 def test_course_tour_walks_every_step(course_app):
     app = course_app
     app.button(key="tour_start").click().run()
-    assert app.session_state["view"] == "Introduction" and any(t.value == "The problem" for t in app.title)
+    assert app.session_state["view"] == "Problem" and any(t.value == "The problem" for t in app.title)
     for i in range(1, len(presentation.COURSE_TOUR)):
         app.button(key="tour_next").click().run()
         assert not app.exception, presentation.COURSE_TOUR[i].title
         assert app.session_state["view"] == presentation.COURSE_TOUR[i].view
         if presentation.COURSE_TOUR[i].view == "Results":
             assert any(m.label == "Average error (MAE)" for m in app.metric)
-    assert any(t.value == "Limitations and future work" for t in app.title)
+        if presentation.COURSE_TOUR[i].view == "Testing":
+            assert any(m.label == "Automated tests (pytest)" and int(m.value) > 100 for m in app.metric)
+    assert any(t.value == "Lessons learned" for t in app.title)
+    assert presentation.DEFAULT_LESSONS["improve"].splitlines()[0] in " ".join(m.value for m in app.markdown)
+
+
+def test_course_tour_follows_the_course_structure():
+    views = [s.view for s in presentation.COURSE_TOUR]
+    order = ["Problem", "Users", "Requirements", "Architecture", "Fleet", "Testing", "Lessons learned"]
+    assert [views.index(v) for v in order] == sorted(views.index(v) for v in order)
+    assert len(presentation.COURSE_TOUR) == 15
 
 
 def test_switching_the_audience_swaps_the_default_wording(app):
