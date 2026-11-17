@@ -37,6 +37,7 @@ import auth  # noqa: E402
 import data_source as ds  # noqa: E402
 import fleet_view  # noqa: E402
 import live_feed  # noqa: E402
+import presentation  # noqa: E402
 import work_order_view  # noqa: E402
 
 st.set_page_config(page_title="Predictive Maintenance Dashboard", page_icon="🛠️", layout="wide")
@@ -129,35 +130,59 @@ def live_panel():
 
 
 def admin_dashboard():
-    """The full dashboard: fleet, asset detail and the live data panel."""
+    """The full dashboard: fleet, asset detail and the live data panel; in presentation mode a branded pitch."""
     fleet = get_fleet(CODE_VERSION, STAMP)
     asset_ids = list(fleet.assets["asset_id"])
     names = dict(zip(fleet.assets["asset_id"], fleet.assets["name"]))
 
+    presentation.init()
     st.session_state.setdefault("view", "Fleet")
     # the first asset opened from the sidebar is the one that needs attention most
     st.session_state.setdefault("selected_asset", ds.snapshot(fleet, 1.0)["asset_id"].iloc[0])
 
-    st.sidebar.title("🛠️ Maintenance Portal")
-    auth.sidebar(USER)
-    st.sidebar.radio("View", ["Fleet", "Asset detail"], key="view")
+    present = presentation.active()
+    views = presentation.VIEWS if present else ["Fleet", "Asset detail"]
+    if st.session_state["view"] not in views:
+        st.session_state["view"] = "Fleet"
+    st.sidebar.title(f"🛠️ {presentation.brand('customer')}" if present else "🛠️ Maintenance Portal")
+    if not (present and USER["name"] is None):        # the "no login configured" note is for the admin, not a pitch
+        auth.sidebar(USER)
+    presentation.sidebar(fleet)
+    present = presentation.active()               # the toggle may have changed it
+    if present:
+        names = presentation.labels(fleet)
+        presentation.apply_styles()
+        presentation.banner()
+        presentation.tour_card(fleet)
+    tab, tab_key = presentation.tab() if present else (None, None)
+    st.sidebar.radio("View", views if present else ["Fleet", "Asset detail"], key="view")
     st.sidebar.markdown("---")
 
-    if st.session_state["view"] == "Fleet":
-        st.sidebar.info("Recorded test runs, scored as if they were live assets. Select a row in the priority table "
-                        "to open an asset.")
-        playing = fleet_view.render(fleet)
-        live_panel()
+    view = st.session_state["view"]
+    if view == "Fleet":
+        if not present:
+            st.sidebar.info("Recorded test runs, scored as if they were live assets. Select a row in the priority "
+                            "table to open an asset.")
+        playing = fleet_view.render(fleet, names if present else None, tab, tab_key)
+        if not present:
+            live_panel()
         if playing:
             fleet_view.next_tick()
-    else:
+    elif view == "Asset detail":
         current = st.session_state["selected_asset"]
         asset_id = st.sidebar.selectbox(
             "Asset", asset_ids, index=asset_ids.index(current) if current in asset_ids else 0,
-            format_func=lambda a: f"{names[a]} ({a})")
+            format_func=(lambda a: names[a]) if present else (lambda a: f"{names[a]} ({a})"))
         st.session_state["selected_asset"] = asset_id
-        asset_view.render(get_asset(asset_id, CODE_VERSION, STAMP))
-        live_panel()
+        asset_view.render(get_asset(asset_id, CODE_VERSION, STAMP), names[asset_id] if present else None, tab,
+                          tab_key)
+        if not present:
+            live_panel()
+    elif view == "Technician view":
+        st.caption("This is the page a technician sees after logging in.")
+        work_order_view.render(USER["name"] or "presenter")
+    else:
+        presentation.closing_page(fleet)
 
 
 if USER["role"] == "maintenance":
@@ -165,6 +190,6 @@ if USER["role"] == "maintenance":
 else:
     admin_dashboard()
 
-if REFRESH_SECONDS > 0 and st.session_state.get("live_refresh"):
+if REFRESH_SECONDS > 0 and st.session_state.get("live_refresh") and not presentation.active():
     time.sleep(REFRESH_SECONDS)
     st.rerun()
