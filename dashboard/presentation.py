@@ -24,7 +24,9 @@ import streamlit as st
 import data_source as ds
 
 VIEWS = ["Fleet", "Asset detail", "Technician view", "Next steps"]
-COURSE_VIEWS = ["Introduction", "Architecture", "Fleet", "Asset detail", "Technician view", "Results", "Wrap-up"]
+COURSE_VIEWS = ["Problem", "Users", "Requirements", "Architecture", "Fleet", "Asset detail", "Technician view",
+                "Testing", "Results", "Lessons learned"]
+TESTS_DIR = ds.ROOT / "tests"
 AUDIENCES = {"pitch": "Customer pitch", "course": "Course presentation"}
 METRICS_FILE = ds.ROOT / "models" / "cmapss_metrics.json"
 ALL_TYPES = "All types"          # the fleet view's "no type filter" value
@@ -38,6 +40,8 @@ DEFAULTS = {
     "cta": "Suggested next step: a pilot on a handful of your assets.",
     "team": "",
     "audience": "pitch",
+    "went_well": "",
+    "improve": "",
 }
 # the course presentation starts from these instead of the customer wording
 COURSE_DEFAULTS = {
@@ -45,9 +49,20 @@ COURSE_DEFAULTS = {
     "tagline": "Course project: from sensor data to a finished repair",
     "cta": "Thank you. Questions?",
 }
+DEFAULT_LESSONS = {
+    "went_well": "Separating ingestion from the transport: the same code scores MQTT, CSV and recorded data.\n"
+                 "Testing against a real MQTT broker found problems that mocks would have hidden.\n"
+                 "Comparing the model with simple baselines kept the results honest.",
+    "improve": "Get real sensor data early: recorded datasets hide the messiness of real equipment.\n"
+               "Calibrate the uncertainty range: the 80% interval covers 73–80% of cases.\n"
+               "Collect more than one run-to-failure for the motor, so its estimate can be validated.\n"
+               "Plan the database for scale: one SQLite file is fine for a demo, not for a large fleet.",
+}
+COURSE_DEFAULTS.update(DEFAULT_LESSONS)
 # plain nouns for the asset types; any other registered type falls back to its registry name
 TYPE_NOUNS = {"turbofan_engine": "Engine", "brushed_dc_motor": "Drive motor", "li_ion_battery": "Battery pack"}
-PROFILE_FIELDS = ["audience", "customer", "tagline", "team", "accent", "logo", "site", "cta"]
+PROFILE_FIELDS = ["audience", "customer", "tagline", "team", "accent", "logo", "site", "cta", "went_well",
+                  "improve"]
 NEW_PROFILE = "➕ New customer"
 QUERY_KEYS = {"audience": "audience", "customer": "customer", "tagline": "tagline", "team": "team",
               "accent": "accent", "logo": "logo", "site": "site"}
@@ -106,51 +121,67 @@ TOUR = [
 ]
 
 COURSE_TOUR = [
+    # 1. the problem
     Step("The problem",
          "Machines fail without warning, and fixed maintenance intervals replace parts that still had life left. "
          "Our goal: predict failures from sensor data early enough to plan the repair.",
-         "Introduction"),
+         "Problem"),
+    # 2. the users
+    Step("Who benefits",
+         "Maintenance planners, technicians and operations managers each get what they need from the same data.",
+         "Users"),
+    # 3. the solution
+    Step("Requirements and what we built",
+         "What the system had to do, and where in this demo you will see each requirement met.",
+         "Requirements"),
+    # 4. the technical architecture
     Step("How the system works",
          "Sensors publish readings over MQTT. An ingestion service validates, stores and scores them, the dashboard "
          "shows the result, and a work order closes the loop to the technician.",
          "Architecture"),
-    Step("From sensor readings to one health score",
+    # 5. the demonstration
+    Step("Demo: from sensor readings to one health score",
          "Each asset's health channels are compared with a baseline from its own first, healthy readings. The "
          "deviations become a health index from 0 to 100 and a status. This is the fleet early in its life.",
          "Fleet", fleet_pct=15, tab=FLEET_TABS[0]),
-    Step("Replaying recorded run-to-failure data",
+    Step("Demo: replaying recorded run-to-failure data",
          "No real machines are connected, so we replay recorded data: NASA C-MAPSS turbofan engines and a brushed "
          "DC motor, scored as if they were live. Watch the assets degrade.",
          "Fleet", fleet_pct=15, fleet_play=True, tab=FLEET_TABS[0]),
-    Step("Ranking by urgency",
+    Step("Demo: ranking by urgency",
          "A learned model estimates each engine's remaining useful life with an 80% prediction interval. Assets are "
          "ranked by status, then by the shortest remaining life.",
          "Fleet", fleet_pct=100, tab=FLEET_TABS[0]),
-    Step("Alerts with a suggested action",
+    Step("Demo: alerts with a suggested action",
          "Each status change raises an alert that says what was detected and what to do about it.",
          "Fleet", fleet_pct=100, tab=FLEET_TABS[1]),
-    Step("One engine, from new to failure",
+    Step("Demo: one engine, from new to failure",
          "The health index falls as the engine wears. The remaining-life estimate and its interval follow the "
          "actual remaining life, which we know because the data was recorded to failure.",
          "Asset detail", asset_play=True, tab=ASSET_TABS[0]),
-    Step("From alert to work order",
+    Step("Demo: from alert to work order",
          "An alert becomes a work order with one click. It goes to the technician page, or as a web request to an "
          "external maintenance system (we used Node-RED). Dispatching is a real write to the shared database.",
          "Asset detail", tab=ASSET_TABS[2]),
-    Step("The technician's page",
+    Step("Demo: the technician's page",
          "A maintenance login sees only the open work orders, most urgent first, and marks them started, completed "
          "or rejected.",
          "Technician view"),
-    Step("Closing the loop",
+    Step("Demo: closing the loop",
          "The technician's update comes back to the alert, so every step from sensor reading to finished repair is "
          "on record.",
          "Asset detail", tab=ASSET_TABS[2]),
-    Step("Results: how accurate is the model?",
+    # 6. testing
+    Step("Testing: how we validated the system",
+         "Automated tests for every part of the pipeline, including a real MQTT broker and its security setup.",
+         "Testing"),
+    Step("Testing: how accurate is the model?",
          "Tested on engines the model never saw, and compared with two simple baselines.",
          "Results"),
-    Step("Limitations and future work",
-         "What the results do not show yet, and what we would do next.",
-         "Wrap-up"),
+    # 7. lessons learned
+    Step("Lessons learned",
+         "What worked, what we would do differently, and what we would build next.",
+         "Lessons learned"),
 ]
 
 
@@ -167,7 +198,8 @@ def init() -> None:
     ss.setdefault("present", params.get("present", "").lower() in ("1", "true", "yes"))
     for field, query in QUERY_KEYS.items():
         ss.setdefault(f"brand_{field}", params.get(query) or DEFAULTS[field])
-    ss.setdefault("brand_cta", DEFAULTS["cta"])
+    for field in ("cta", "went_well", "improve"):
+        ss.setdefault(f"brand_{field}", DEFAULTS[field])
     if ss["brand_audience"] not in AUDIENCES:
         ss["brand_audience"] = DEFAULTS["audience"]
     if ss["brand_audience"] == "course":
@@ -379,6 +411,9 @@ def sidebar(fleet: ds.Fleet) -> None:
             st.session_state.setdefault(f"noun_{type_id}", type_noun(type_id))
             st.text_input(ds.registry.get_type(type_id).name, key=f"noun_{type_id}")
         st.text_area("Closing line" if is_course else "Closing call to action", key="brand_cta", height=90)
+        if is_course:
+            st.text_area("Lessons learned: what went well (one per line)", key="brand_went_well", height=120)
+            st.text_area("Lessons learned: what we would improve (one per line)", key="brand_improve", height=140)
         st.button("💾 Save profile" if is_course else "💾 Save customer profile", key="profile_save", width="stretch", type="primary",
                   on_click=save_profile)
         if "_profile_saved" in st.session_state:
@@ -522,8 +557,9 @@ def closing_page(fleet: ds.Fleet) -> None:
 # ---------------------------------------------------------------- course presentation pages
 def page(view: str, fleet: ds.Fleet) -> None:
     """Draws one of presentation mode's own pages (the views that are not the dashboard itself)."""
-    {"Introduction": intro_page, "Architecture": architecture_page, "Results": results_page,
-     "Wrap-up": wrapup_page}.get(view, closing_page)(fleet)
+    {"Problem": intro_page, "Users": users_page, "Requirements": requirements_page,
+     "Architecture": architecture_page, "Testing": testing_page, "Results": results_page,
+     "Lessons learned": lessons_page}.get(view, closing_page)(fleet)
 
 
 def _cards(cards: list) -> None:
@@ -637,26 +673,125 @@ def results_page(fleet: ds.Fleet) -> None:
                   f"(FD002, FD004) are harder.")
 
 
-def wrapup_page(fleet: ds.Fleet) -> None:
-    st.title("Limitations and future work")
+def users_page(fleet: ds.Fleet) -> None:
+    st.title("Who benefits")
+    _cards([
+        ("🗂️ Maintenance planner", "Sees the whole fleet ranked by urgency, with how long each asset has left, and "
+                                  "plans repairs into the next scheduled stop."),
+        ("🔧 Technician", "Logs in to a simple page with only the open work orders, most urgent first, and reports "
+                         "progress with one click."),
+        ("📊 Operations manager", "Fewer unplanned breakdowns, less downtime, and parts replaced when they are worn "
+                                 "rather than on a fixed schedule."),
+    ])
+    st.markdown("---")
+    _cards([
+        ("🔌 System integrator", "Connects new sensors over MQTT, or existing logs as CSV, and adds new kinds of "
+                                "equipment with one registry entry."),
+        ("🏭 Existing maintenance system", "Receives work orders as web requests and reports their status back, so "
+                                          "the dashboard fits the tools a company already uses."),
+    ])
+
+
+REQUIREMENTS = [
+    ("Collect sensor data from any kind of equipment", "MQTT ingestion, CSV import, asset-type registry",
+     "Architecture"),
+    ("Show each asset's condition so anyone can read it", "Health index 0–100 and a status", "Demo: health score"),
+    ("Predict the remaining useful life, with its uncertainty", "Learned model with an 80% interval",
+     "Demo: ranking"),
+    ("Tell the team what to fix first", "Fleet ranked by status and remaining life", "Demo: ranking"),
+    ("Raise alerts with a suggested action", "Alerts per asset and fleet-wide", "Demo: alerts"),
+    ("Turn an alert into a work order and track it", "Work orders, technician page, web hook to a CMMS",
+     "Demo: work order"),
+    ("Separate admin and technician access", "Logins with two roles", "Demo: technician"),
+    ("Secure device communication", "TLS, a password per device, topic ACLs", "Testing"),
+    ("Work without real equipment for development and demos", "Simulator and recorded replay", "Demo: replay"),
+]
+
+
+def requirements_page(fleet: ds.Fleet) -> None:
+    st.title("Requirements and what we built")
+    st.dataframe(pd.DataFrame(REQUIREMENTS, columns=["Requirement", "How we met it", "Shown in"]),
+                 hide_index=True, width="stretch")
+    st.caption("The result: one pipeline from sensor reading to finished repair, made of ingestion, scoring, "
+               "prediction, a dashboard and work orders.")
+
+
+TEST_AREAS = {
+    "MQTT ingestion and security": ["test_mqtt.py", "test_mqtt_security.py", "test_simulator.py"],
+    "Data intake and storage": ["test_ingest.py", "test_db.py", "test_publish_csv.py", "test_datasets.py",
+                                "test_pipeline.py"],
+    "Remaining-life model": ["test_rul.py"],
+    "Work orders and logins": ["test_work_orders.py", "test_login.py"],
+    "Dashboard": ["test_app.py", "test_dashboard_data.py", "test_presentation.py"],
+}
+
+
+def test_counts() -> dict:
+    """{area: number of automated tests}, counted from the test files (empty when they are not deployed)."""
+    import re
+    out = {}
+    for area, files in TEST_AREAS.items():
+        n = 0
+        for f in files:
+            try:
+                n += len(re.findall(r"^def test_", (TESTS_DIR / f).read_text(), flags=re.M))
+            except OSError:
+                pass
+        if n:
+            out[area] = n
+    return out
+
+
+test_counts.__test__ = False      # not a pytest test, despite its name
+
+
+def testing_page(fleet: ds.Fleet) -> None:
+    import plotly.graph_objects as go
+    st.title("Testing: how we validated the system")
+    counts = test_counts()
+    left, right = st.columns([2, 3])
+    with left:
+        if counts:
+            st.metric("Automated tests (pytest)", sum(counts.values()))
+            fig = go.Figure(go.Bar(x=list(counts.values()), y=list(counts), orientation="h",
+                                   text=list(counts.values()), textposition="outside",
+                                   marker_color=brand("accent") if _valid_color(brand("accent"))
+                                   else DEFAULTS["accent"]))
+            fig.update_traces(cliponaxis=False)
+            fig.update_layout(height=280, margin=dict(l=10, r=40, t=10, b=10), yaxis=dict(autorange="reversed"),
+                              xaxis=dict(visible=False, range=[0, max(counts.values()) * 1.15]))
+            st.plotly_chart(fig, width="stretch")
+        else:
+            st.info("The test files are not part of this deployment.")
+    with right:
+        st.markdown(
+            "- **End to end over a real MQTT broker:** a simulated device streams readings, the service stores and "
+            "scores them, and messages sent while the service was down are processed when it returns.\n"
+            "- **Security:** TLS, a password per device, and ACLs that keep each device on its own topics, "
+            "tested against Mosquitto.\n"
+            "- **Bad data is refused, not fatal:** invalid, duplicate, out-of-order and future readings, with the "
+            "reason reported back to the device.\n"
+            "- **Model:** features use only past readings (no peeking at the future), and the model must beat a "
+            "constant baseline on engines it never saw.\n"
+            "- **Work orders:** an alert dispatched from the dashboard reaches an external service, and its status "
+            "comes back.\n"
+            "- **Dashboard:** every view and both tours are clicked through automatically.")
+    st.caption("Run them with `python -m pytest`. The broker tests need Mosquitto or amqtt installed.")
+
+
+def _lines(field: str) -> str:
+    return "\n".join(f"- {line.strip()}" for line in brand(field).splitlines() if line.strip())
+
+
+def lessons_page(fleet: ds.Fleet) -> None:
+    st.title("Lessons learned")
     left, right = st.columns(2)
     with left:
-        st.markdown("### Limitations")
-        st.markdown(
-            "- **Recorded data, not real machines.** The fleet is public run-to-failure data, replayed as live "
-            "over MQTT.\n"
-            "- **The motor has a single recorded run**, so its remaining-life estimate cannot be validated.\n"
-            "- **The 80% interval is overconfident**: it contains the truth less often than promised.\n"
-            "- **One model per asset type.** Accuracy is shown across engines of one type, not across types.\n"
-            "- **The health baseline assumes each asset starts healthy.**")
+        st.markdown("### What went well")
+        st.markdown(_lines("went_well"))
     with right:
-        st.markdown("### Future work")
-        st.markdown(
-            "- Connect real sensors through a gateway in a small pilot.\n"
-            "- Collect more run-to-failure data for the motor and other equipment.\n"
-            "- Recalibrate the intervals so 80% really means 80%.\n"
-            "- Schedule repairs by cost: downtime, spare parts and technician time.\n"
-            "- Move from one database file to a time-series database for larger fleets.")
+        st.markdown("### What we would improve")
+        st.markdown(_lines("improve"))
     st.markdown("---")
     st.markdown(f"### {brand('cta')}")
     if brand("team"):
