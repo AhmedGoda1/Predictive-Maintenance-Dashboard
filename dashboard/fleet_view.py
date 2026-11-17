@@ -67,10 +67,10 @@ def _rul_text(row) -> str:
     return text
 
 
-def _priority_table(snap: pd.DataFrame):
+def _priority_table(snap: pd.DataFrame, names: dict = None):
     view = pd.DataFrame({
         "Status": snap["status"].map(utils.status_label),
-        "Asset": snap["asset_id"],
+        "Asset": snap["asset_id"].map(names) if names else snap["asset_id"],
         "Source": snap["live"].map({True: "live feed", False: "recorded"}),
         "Type": snap["type_name"],
         "Health index": snap["health_score"],
@@ -79,6 +79,8 @@ def _priority_table(snap: pd.DataFrame):
         "Produced by": snap["method"],
         "Open alerts": snap["open_alerts"],
     })
+    if names:                              # presentation: what a customer needs, without the model internals
+        view = view.drop(columns=["Source", "Produced by"])
     st.session_state["_fleet_rows"] = list(snap["asset_id"])
     st.session_state["_fleet_pos"] = dict(zip(snap["asset_id"], snap["position"]))
     st.dataframe(
@@ -111,14 +113,14 @@ def _rul_charts(snap: pd.DataFrame, show_actual: bool):
             st.plotly_chart(utils.plot_fleet_rul(snap, type_id, show_actual), width="stretch")
 
 
-def _alerts_tab(snap: pd.DataFrame):
+def _alerts_tab(snap: pd.DataFrame, names: dict = None):
     open_ = snap[snap["open_alerts"] > 0]
     if open_.empty:
         st.success("No open alerts at this snapshot.")
         return
     st.dataframe(pd.DataFrame({
         "Level": open_["latest_level"].map(utils.status_label),
-        "Asset": open_["asset_id"],
+        "Asset": open_["asset_id"].map(names) if names else open_["asset_id"],
         "Latest alert": open_["latest_alert"], "Suggested action": open_["latest_action"],
         "Alerts so far": open_["open_alerts"],
     }), hide_index=True, width="stretch")
@@ -159,8 +161,12 @@ def _models_tab(fleet: ds.Fleet):
     )
 
 
-def render(fleet: ds.Fleet) -> bool:
-    """Draws the fleet view. Returns True while playback runs, so the caller schedules the next tick."""
+def render(fleet: ds.Fleet, names: dict = None, tab: str = None, tab_key: str = None) -> bool:
+    """Draws the fleet view. Returns True while playback runs, so the caller schedules the next tick.
+
+    `names` ({asset_id: name}) shows plain asset names and hides the model internals (presentation mode);
+    `tab` is the tab that opens first.
+    """
     st.title("Fleet overview")
 
     # filters in one row above everything they scope; restore their values after a view switch
@@ -189,16 +195,19 @@ def render(fleet: ds.Fleet) -> bool:
         st.caption(f"⚪ {learning} asset(s) still learning their healthy baseline are not counted in the statuses above.")
     st.markdown("---")
 
-    tab_status, tab_alerts, tab_models = st.tabs(["📋 Maintenance priority", "🚨 Open alerts", "🧠 Models & data"])
+    tab_names = ["📋 Maintenance priority", "🚨 Open alerts", "🧠 Models & data"]
+    tab_status, tab_alerts, tab_models = st.tabs(tab_names, default=tab if tab in tab_names else None,
+            key=f"tabs_{tab_key}" if tab_key else None)
+    shown = snap.assign(asset_id=snap["asset_id"].map(names).fillna(snap["asset_id"])) if names else snap
     with tab_status:
-        _priority_table(snap)
+        _priority_table(snap, names)
         left, right = st.columns(2)
         with left:
-            st.plotly_chart(utils.plot_fleet_health(snap), width="stretch")
+            st.plotly_chart(utils.plot_fleet_health(shown), width="stretch")
         with right:
-            _rul_charts(snap, show_actual)
+            _rul_charts(shown, show_actual)
     with tab_alerts:
-        _alerts_tab(snap)
+        _alerts_tab(snap, names)
     with tab_models:
         _models_tab(fleet)
     return playing
