@@ -187,8 +187,10 @@
     </step>
 
     <step id="loadOrders">
-      <alias name="orders" value="home://workorders.xml" model="data"/>
-      <operation name="bind" value="$orders">
+      <!-- Bound and changed by the same URL, as in the plugin's measured design-kit example (sample mode:
+           "change store type=append on the listing's URL, so the list grows"): the runtime then shares one
+           document between the grid and the change, and the grid redraws. -->
+      <operation name="bind" value="home://workorders.xml">
         <component view="PdmView" name="ordersGrid" select="workorders"/>
       </operation>
     </step>
@@ -257,7 +259,7 @@
 
     <!-- ======================== alerts: create the work order -->
     <step id="dispatch">
-      <operation name="change" value="$orders">
+      <operation name="change" value="home://workorders.xml">
         <store select="/workorders" type="append">
           <workorder id="WO-{$alert#@id}" alert="{$alert#@id}" asset="{$alert#@asset}"
                      assetName="{$alert#@assetName}" priority="{$alert#@priority}" level="{$alert#@level}"
@@ -293,22 +295,22 @@
     </step>
 
     <step id="orderStart">
-      <operation name="change" value="#PdmView#ordersGrid">
-        <store select="@status" type="replaceText">in_progress</store>
+      <operation name="change" value="home://workorders.xml">
+        <store select="/workorders/workorder[@id='{$order#@id}']/@status" type="replaceText">in_progress</store>
       </operation>
       <operation name="call" value="saveOrders"/>
     </step>
 
     <step id="orderComplete">
-      <operation name="change" value="#PdmView#ordersGrid">
-        <store select="@status" type="replaceText">completed</store>
+      <operation name="change" value="home://workorders.xml">
+        <store select="/workorders/workorder[@id='{$order#@id}']/@status" type="replaceText">completed</store>
       </operation>
       <operation name="call" value="saveOrders"/>
     </step>
 
     <step id="orderReject">
-      <operation name="change" value="#PdmView#ordersGrid">
-        <store select="@status" type="replaceText">rejected</store>
+      <operation name="change" value="home://workorders.xml">
+        <store select="/workorders/workorder[@id='{$order#@id}']/@status" type="replaceText">rejected</store>
       </operation>
       <operation name="call" value="saveOrders"/>
     </step>
