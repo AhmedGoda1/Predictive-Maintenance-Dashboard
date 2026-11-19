@@ -143,6 +143,7 @@
     <trigger view="PdmView" component="ordersGrid"  event="Select" step="orderSelected"/>
     <trigger view="PdmView" component="btnLogin"    event="Select" step="login"/>
     <!-- events of the CloudBackend database channel opened in init (communicator name as in the docs' example) -->
+    <trigger communicator="xios" event="Login"        step="doLogin"/>
     <trigger communicator="xios" event="Authorized"   step="signedIn"/>
     <trigger communicator="xios" event="LoginFailure" step="loginFailed"/>
     <trigger view="PdmView" component="btnStart"    event="Select" step="orderStart"/>
@@ -167,7 +168,13 @@
         </method>
       </operation>
 
-      <!-- Open the CloudBackend database channel (gives the home:// drive once a user signs in).
+    </step>
+
+    <!-- ======================== sign-in -->
+    <!-- Sign in button: open the CloudBackend database channel. It answers with a Login event
+         (communicator "xios"), and the login itself has to run in the step that event triggers. -->
+    <step id="login">
+      <!-- Opens the CloudBackend database channel (gives the home:// drive once a user signs in).
            Taken from the docs' "CloudBackend channel : XML Database" example. -->
       <operation name="channel" value="https://api.cloudbackend.com/v1/">
         <name>cbe</name>
@@ -179,8 +186,7 @@
       </operation>
     </step>
 
-    <!-- ======================== sign-in -->
-    <step id="login">
+    <step id="doLogin">
       <operation name="login" value="cbe">
         <username>{#PdmView#loginUser}</username>
         <password>{#PdmView#loginPass}</password>
