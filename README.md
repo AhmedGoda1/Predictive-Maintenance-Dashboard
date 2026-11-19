@@ -133,20 +133,6 @@ maintenance.db ──scripts/export_xios3.py──▶ xios3/data/*.xml ──upl
 - **`mobile/`**: a Capacitor 8 Android project whose only screen opens the deployed app, for testing on a phone or an
   emulator (not a store release). Build steps are in `mobile/README.md`.
 
-What was done on 2026-11-19:
-
-1. Checked the app against the CloudBackend developer documentation and its Claude plugin (component reference,
-   linter, the extension's XML schemas) and fixed what did not follow it: start-up on `Loaded`, the first-run copy of
-   the work-order document, sign-up and password-reset links on the login, a Sign out button, ASCII-only files.
-2. Fixed the two open bugs: the health chart (now an XSLT render) and the work-order grid, which now refreshes
-   without being bound again after every save (repeated binds broke row selection).
-3. Made it work on phones: one adaptive view (the platform's login always opens the first declared view), the
-   CloudBackend design kit's `Screen` component, fewer grid columns and Back buttons on narrow screens, and the
-   plugin's boot-page fixes so the login card fits a phone.
-4. Added *Delete completed orders* to clear test data.
-5. Wrapped the deployment as an Android app with Capacitor and tested it in the Android emulator.
-6. Added the *Mobile app* page to the presentation tour.
-
 Known messages in the browser console that come from the platform, not the app: a 404 for
 `/v1/wsg3/<tenant>/:Tenant/` (no published `Tenant` container) and "No view to act on" from the login app.
 
