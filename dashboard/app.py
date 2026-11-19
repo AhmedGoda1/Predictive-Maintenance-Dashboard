@@ -130,7 +130,7 @@ def live_panel():
 
 
 def admin_dashboard():
-    """The full dashboard: fleet, asset detail and the live data panel; in presentation mode a branded pitch."""
+    """The full dashboard: fleet, asset detail and the live data panel; in presentation mode the course presentation."""
     fleet = get_fleet(CODE_VERSION, STAMP)
     asset_ids = list(fleet.assets["asset_id"])
     names = dict(zip(fleet.assets["asset_id"], fleet.assets["name"]))
@@ -145,7 +145,7 @@ def admin_dashboard():
     if st.session_state["view"] not in views:
         st.session_state["view"] = "Fleet"
     st.sidebar.title(f"🛠️ {presentation.brand('customer')}" if present else "🛠️ Maintenance Portal")
-    if not (present and USER["name"] is None):        # the "no login configured" note is for the admin, not a pitch
+    if not (present and USER["name"] is None):        # the "no login configured" note is for the admin, not the audience
         auth.sidebar(USER)
     presentation.sidebar(fleet)
     present = presentation.active()               # the toggle may have changed it
@@ -156,7 +156,7 @@ def admin_dashboard():
         presentation.tour_card(fleet)
     tab, tab_key = presentation.tab() if present else (None, None)
     if st.session_state["view"] not in (presentation.views() if present else ["Fleet", "Asset detail"]):
-        st.session_state["view"] = "Fleet"            # the audience or the toggle changed the list of views
+        st.session_state["view"] = "Fleet"            # the toggle changed the list of views
     st.sidebar.radio("View", presentation.views() if present else ["Fleet", "Asset detail"], key="view")
     st.sidebar.markdown("---")
 

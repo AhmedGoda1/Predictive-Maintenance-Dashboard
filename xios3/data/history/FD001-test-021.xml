@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <history asset="FD001-test-021" unit="cycles">
-  <serie name="Health index" select="point" value="@health" label="@age" />
-  <axis x="Age (cycles)" y="Health index (0-100)" />
   <point age="1.0" health="72.1" rul="125.0" status="Healthy" />
   <point age="3.0" health="84.4" rul="125.0" status="Healthy" />
   <point age="6.0" health="91.9" rul="125.0" status="Healthy" />

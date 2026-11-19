@@ -1,6 +1,6 @@
 """Exports the pipeline's results as XML documents for the XIOS3 technician app (xios3/).
 
-The XIOS3 app binds its grids and charts straight to XML, so this script turns maintenance.db into a few small
+The XIOS3 app binds its grids and its health chart (an XSLT render) straight to XML, so this script turns maintenance.db into a few small
 documents that are uploaded to CloudBackend together with the app:
 
     xios3/data/fleet.xml              one <asset> per asset, in maintenance-priority order (same order as the
@@ -138,10 +138,7 @@ def history_xml(asset_id: str, type_id: str, h: pd.DataFrame, points: int, alert
                 asset_name: str = "") -> ET.Element:
     unit = _display(None, type_id)[1]
     root = ET.Element("history", asset=asset_id, unit=unit)
-    # What the XIOS3 <chart> component plots (its docs only say the root carries a <serie> naming what to plot,
-    # so this layout is a best guess to check on the first deployment).
-    ET.SubElement(root, "serie", name="Health index", select="point", value="@health", label="@age")
-    ET.SubElement(root, "axis", x=f"Age ({unit})", y="Health index (0-100)")
+    # XIOS/3 has no chart component: the app's render draws these points as SVG (xios3/data/healthchart.xsl)
     for _, r in thin(h.sort_values("age"), points).iterrows():
         ET.SubElement(root, "point", {
             "age": _num(_display(r["age"], type_id)[0]), "health": _num(r["health_score"]),
