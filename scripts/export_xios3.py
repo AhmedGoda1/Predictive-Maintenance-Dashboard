@@ -134,6 +134,10 @@ def thin(h: pd.DataFrame, points: int) -> pd.DataFrame:
 def history_xml(asset_id: str, type_id: str, h: pd.DataFrame, points: int) -> ET.Element:
     unit = _display(None, type_id)[1]
     root = ET.Element("history", asset=asset_id, unit=unit)
+    # What the XIOS3 <chart> component plots (its docs only say the root carries a <serie> naming what to plot,
+    # so this layout is a best guess to check on the first deployment).
+    ET.SubElement(root, "serie", name="Health index", select="point", value="@health", label="@age")
+    ET.SubElement(root, "axis", x=f"Age ({unit})", y="Health index (0-100)")
     for _, r in thin(h.sort_values("age"), points).iterrows():
         ET.SubElement(root, "point", {
             "age": _num(_display(r["age"], type_id)[0]), "health": _num(r["health_score"]),
@@ -163,6 +167,9 @@ def export(out_dir: Path = DEFAULT_OUT, points: int = 60, db_path=None) -> dict:
     for asset_id, h in health.groupby("asset_id"):
         _write(history_xml(asset_id, assets.loc[asset_id, "type_id"], h, points),
                out_dir / "history" / f"{asset_id}.xml")
+    seed = out_dir / "workorders.xml"            # empty starting document; the app copies it to the user's Documents
+    if not seed.exists():
+        _write(ET.Element("workorders"), seed)
     return {"assets": len(rows), "alerts": len(alerts), "out": str(out_dir)}
 
 
