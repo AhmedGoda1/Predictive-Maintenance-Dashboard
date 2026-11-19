@@ -37,6 +37,8 @@ dataset adapters (motor, C-MAPSS) ───────┴─ the same code scor
 | `pdm/pipeline.py`, `build_db.py` | Builds `maintenance.db` with the recorded demo assets |
 | `dashboard/` | Streamlit app: fleet overview, asset detail, live demo feed (builds the database on first start if missing) |
 | `tests/` | pytest suite, including integration tests against a real MQTT broker |
+| `scripts/export_xios3.py`, `xios3/` | XIOS3 technician app for CloudBackend (fleet, asset health, alerts, work orders, phone layout) and the exporter that turns `maintenance.db` into its XML data; see `xios3/README.md` |
+| `mobile/` | Capacitor Android test app that opens the deployed XIOS3 app; see `mobile/README.md` |
 
 ## Run it
 

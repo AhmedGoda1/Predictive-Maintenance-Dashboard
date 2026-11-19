@@ -15,7 +15,7 @@ data in CloudBackend.
 | Path | Purpose |
 |---|---|
 | `index.xml` | Application manifest: the view and the process (triggers and steps). CloudBackend deployments expect this name. |
-| `index.html` | Boot page for the deployed site. Pressing ▶ in VS Code rewrites it for local use, so upload this version. |
+| `index.html` | Boot page for the deployed site. Pressing Run (the play button) in VS Code rewrites it for local use, so upload this version. |
 | `data/fleet.xml`, `data/alerts.xml`, `data/history/*.xml` | Pipeline results, written by `python scripts/export_xios3.py` |
 | `styles/app.css`, `ui/DesignKit/` | Narrow-screen support: the Screen component from the CloudBackend plugin's design kit tells the process whether it runs on a phone, and `app.css` lets one card fill the width there. On a phone each tab shows its list first and the detail after a tap, with a Back button, and the grids show fewer columns. |
 | `data/healthchart.xsl` | Draws the health chart as SVG (XIOS/3 has no chart component). |
@@ -33,7 +33,8 @@ Then upload the `data` folder again (see below). Work orders are not touched, si
 
 1. Open this `xios3` folder in VS Code and run `CloudBackend: Sign in`.
 2. In the CloudBackend sidebar's Projects view, create a project folder (for example `PdmTechnician`).
-3. Run `CloudBackend: Upload all project files to…` and pick that folder.
+3. In that project folder, create the sub-folders `data`, `data/history`, `styles`, `ui` and `ui/DesignKit` first
+   (each folder is a container of its own), then run `CloudBackend: Upload all project files to...` and pick it.
 4. In CloudBackend PaaS, open the Projects tab, select the project and deploy it.
 
 ## Status (2026-11-19)

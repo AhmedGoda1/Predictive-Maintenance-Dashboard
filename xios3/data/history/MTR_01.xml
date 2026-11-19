@@ -1,7 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <history asset="MTR_01" unit="min">
-  <serie name="Health index" select="point" value="@health" label="@age" />
-  <axis x="Age (min)" y="Health index (0-100)" />
   <point age="0.0" health="93.0" rul="30.7" status="Healthy" />
   <point age="0.4" health="98.8" rul="30.7" status="Healthy" />
   <point age="1.0" health="91.8" rul="30.8" status="Healthy" />
