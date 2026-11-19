@@ -30,79 +30,110 @@
        and home:// (where work orders are saved) only exists for one. View and process wait for it. -->
   <process xlink:actuate="onLoad" xlink:href="xios://apps/login.xml"/>
 
+  <!-- create/reset show the sign-up and forgot-password links (plugin login.md: all three ways in).
+       The plugin also recommends session="true" (stay signed in across reloads), <button> and
+       <createPrompt>, but the VS Code extension 2.4.0 schema rejects them, so they are left out until
+       one deploy confirms CloudBackend accepts them. Element order follows the schema's sequence. -->
   <login>
     <title>Predictive Maintenance</title>
     <description>Sign in to see the fleet and manage work orders.</description>
     <copyright>Predictive Maintenance Dashboard</copyright>
+    <create>Create an account</create>
+    <reset>Forgot your password?</reset>
   </login>
 
+  <!-- ============================================================ components -->
+  <!-- Screen (from the CloudBackend plugin's design kit, ui/DesignKit/): no visible part; getValue() is
+       phone (up to 600 px), tablet or desktop, and it fires a Screen event when the window crosses a
+       breakpoint. The login app always opens the first declared view, so a separate phone view would
+       never show (plugin login-measured.md); this one view adapts instead. -->
+  <components>
+    <component name="Screen" tag="screen" class="CA_Screen" href="ui/DesignKit/CA_Screen.js" container="false">
+      <skin href="ui/DesignKit/screen.xsl"/>
+    </component>
+  </components>
+
   <!-- ============================================================ UI -->
+  <!-- Desktop/tablet: list and detail side by side. Phone (process step applyScreen): one card at a time,
+       the list first, the detail after a pick with a Back button, and fewer grid columns. -->
   <view xlink:actuate="onRequest" name="PdmView" title="Predictive Maintenance" icon="icon://rocket" width="1200" height="760">
+    <style href="styles/app.css"/>
     <panel name="MainPanel" type="rows" padding="8" gap="8">
 
-      <label name="lblSummary" size="14" bold="true" text="Loading fleet…"/>
+      <panel name="topBar" type="columns" gap="8" height="32">
+        <label name="lblSummary" size="14" bold="true" text="Loading fleet&#8230;"/>
+        <button name="btnSignOut" text="Sign out"/>
+      </panel>
 
       <tabstrip name="tabs" position="top" tabs="true">
 
         <!-- ======================== Fleet: priority grid + selected asset -->
-        <panel name="tabFleet" type="columns" gap="8" selected="true" title="Fleet">
+        <panel name="tabFleet" type="columns" class="pdm-main" gap="8" selected="true" title="Fleet">
 
-          <grid name="fleetGrid" width="560" height="auto" selection="row" datachange="false" deselect="false">
-            <row match="asset" height="28">
-              <column width="40"  name="#"         match="@rank"       display="."/>
-              <column width="190" name="Asset"     match="@name"       display="."/>
-              <column width="70"  name="Status"    match="@status"     display="."/>
-              <column width="60"  name="Health"    match="@health"     display="."/>
-              <column width="110" name="Est. life" match="@rulText"    display="."/>
-              <column width="60"  name="Alerts"    match="@openAlerts" display="."/>
-            </row>
-          </grid>
+          <panel name="fleetCard" type="rows" class="pdm-list" width="560">
+            <grid name="fleetGrid" width="100%" height="auto" selection="row" datachange="false" deselect="false">
+              <row match="asset" height="28">
+                <column width="40"  name="colRank"   label="#"         match="@rank"       display="."/>
+                <column width="190" name="colAsset"  label="Asset"     match="@name"       display="."/>
+                <column width="70"  name="colStatus" label="Status"    match="@status"     display="."/>
+                <column width="60"  name="colHealth" label="Health"    match="@health"     display="."/>
+                <column width="110" name="colRul"    label="Est. life" match="@rulText"    display="."/>
+                <column width="60"  name="colAlerts" label="Alerts"    match="@openAlerts" display="."/>
+              </row>
+            </grid>
+          </panel>
 
-          <panel name="assetPanel" type="rows" gap="6" padding="8" title="Selected asset">
-            <label name="lblAssetName"   size="16" bold="true" text="Select an asset in the list"/>
-            <label name="lblAssetType"   text=""/>
-            <label name="lblAssetStatus" text=""/>
-            <label name="lblAssetHealth" text=""/>
-            <label name="lblAssetRul"    text=""/>
-            <label name="lblAssetDriver" text=""/>
-            <label name="lblAssetLatest" text=""/>
-            <label name="lblAssetAction" text=""/>
+          <panel name="assetPanel" type="rows" class="pdm-detail" gap="6" padding="8" title="Selected asset">
+            <button name="btnBackFleet" text="Back to fleet" hide="true"/>
+            <label name="lblAssetName"   size="16" bold="true" ellipsis="false" text="Select an asset in the list"/>
+            <label name="lblAssetType"   ellipsis="false" text=""/>
+            <label name="lblAssetStatus" ellipsis="false" text=""/>
+            <label name="lblAssetHealth" ellipsis="false" text=""/>
+            <label name="lblAssetRul"    ellipsis="false" text=""/>
+            <label name="lblAssetDriver" ellipsis="false" text=""/>
+            <label name="lblAssetLatest" ellipsis="false" text=""/>
+            <label name="lblAssetAction" ellipsis="false" text=""/>
 
-            <chart name="healthChart" charttype="linechart" width="auto" height="200"/>
+            <!-- XIOS/3 has no chart component: the health line is drawn as SVG by an XSLT bound to the history file.
+                 The SVG scales to the panel's width (viewBox), so it fits a phone. -->
+            <render name="healthChart" href="host://data/healthchart.xsl" width="100%" height="210" scroll="false"/>
 
             <label text="Alerts for this asset" bold="true"/>
             <grid name="assetAlertsGrid" height="150" selection="row" datachange="false">
               <row match="alert" height="26">
-                <column width="130" name="Raised" match="@raised" display="."/>
-                <column width="70"  name="Level"  match="@level"  display="."/>
-                <column width="330" name="Issue"  match="@issue"  display="."/>
+                <column width="130" name="colAaRaised" label="Raised" match="@raised" display="."/>
+                <column width="70"  name="colAaLevel"  label="Level"  match="@level"  display="."/>
+                <column width="270" name="colAaIssue"  label="Issue"  match="@issue"  display="."/>
               </row>
             </grid>
           </panel>
         </panel>
 
         <!-- ======================== Alerts: every alert + dispatch form -->
-        <panel name="tabAlerts" type="columns" gap="8" title="Alerts">
+        <panel name="tabAlerts" type="columns" class="pdm-main" gap="8" title="Alerts">
 
-          <grid name="alertsGrid" width="640" height="auto" selection="row" datachange="false">
-            <row match="alert" height="28">
-              <column width="130" name="Raised"   match="@raised"    display="."/>
-              <column width="170" name="Asset"    match="@assetName" display="."/>
-              <column width="70"  name="Level"    match="@level"     display="."/>
-              <column width="260" name="Issue"    match="@issue"     display="."/>
-            </row>
-          </grid>
+          <panel name="alertsCard" type="rows" class="pdm-list" width="640">
+            <grid name="alertsGrid" width="100%" height="auto" selection="row" datachange="false">
+              <row match="alert" height="28">
+                <column width="130" name="colAlRaised" label="Raised" match="@raised"    display="."/>
+                <column width="170" name="colAlAsset"  label="Asset"  match="@assetName" display="."/>
+                <column width="70"  name="colAlLevel"  label="Level"  match="@level"     display="."/>
+                <column width="260" name="colAlIssue"  label="Issue"  match="@issue"     display="."/>
+              </row>
+            </grid>
+          </panel>
 
-          <panel name="dispatchPanel" type="rows" gap="6" padding="8" title="Dispatch a work order">
-            <label name="lblAlertAsset"  bold="true" text="Select an alert in the list"/>
-            <label name="lblAlertIssue"  text=""/>
-            <label name="lblAlertAction" text=""/>
-            <label name="lblAlertPriority" text=""/>
-            <input    name="woAssignee" label="Technician" placeholder="Who does the job"/>
+          <panel name="dispatchPanel" type="rows" class="pdm-detail" gap="6" padding="8" title="Dispatch a work order">
+            <button name="btnBackAlerts" text="Back to alerts" hide="true"/>
+            <label name="lblAlertAsset"    bold="true" ellipsis="false" text="Select an alert in the list"/>
+            <label name="lblAlertIssue"    ellipsis="false" text=""/>
+            <label name="lblAlertAction"   ellipsis="false" text=""/>
+            <label name="lblAlertPriority" ellipsis="false" text=""/>
+            <input    name="woAssignee" width="100%" label="Technician" placeholder="Who does the job"/>
             <date     name="woDue"/>
-            <textarea name="woNote" height="70" placeholder="Instructions for the technician"/>
-            <button   name="btnDispatch" text="Dispatch work order" type="do" enabled="false"/>
-            <label    name="lblDispatchResult" text=""/>
+            <textarea name="woNote" width="100%" height="70" placeholder="Instructions for the technician"/>
+            <button   name="btnDispatch" text="Dispatch work order" enabled="false"/>
+            <label    name="lblDispatchResult" ellipsis="false" text=""/>
           </panel>
         </panel>
 
@@ -112,33 +143,48 @@
           <!-- datachange="true": the grid redraws itself when its bound document changes -->
           <grid name="ordersGrid" height="auto" selection="row" datachange="true">
             <row match="workorder" height="28">
-              <column width="90"  name="Order"      match="@id"        display="."/>
-              <column width="170" name="Asset"      match="@assetName" display="."/>
-              <column width="70"  name="Priority"   match="@priority"  display="."/>
-              <column width="90"  name="Status"     match="@status"    display="."/>
-              <column width="110" name="Technician" match="@assignee"  display="."/>
-              <column width="100" name="Due"        match="@due"       display="."/>
-              <column width="260" name="Issue"      match="@issue"     display="."/>
+              <column width="90"  name="colWoId"       label="Order"      match="@id"        display="."/>
+              <column width="170" name="colWoAsset"    label="Asset"      match="@assetName" display="."/>
+              <column width="70"  name="colWoPriority" label="Priority"   match="@priority"  display="."/>
+              <column width="90"  name="colWoStatus"   label="Status"     match="@status"    display="."/>
+              <column width="110" name="colWoAssignee" label="Technician" match="@assignee"  display="."/>
+              <column width="100" name="colWoDue"      label="Due"        match="@due"       display="."/>
+              <column width="260" name="colWoIssue"    label="Issue"      match="@issue"     display="."/>
             </row>
           </grid>
 
+          <!-- the selected order on its own line, the three buttons on the next, so a phone fits them -->
+          <label name="lblOrder" ellipsis="false" text="Select a work order"/>
           <panel name="orderActions" type="columns" gap="8">
-            <label  name="lblOrder" text="Select a work order"/>
             <button name="btnStart"    text="Start"    enabled="false"/>
             <button name="btnComplete" text="Complete" enabled="false"/>
             <button name="btnReject"   text="Reject"   enabled="false"/>
           </panel>
+
+          <!-- clean-up: an in-app confirmation instead of a confirm dialog (the plugin's theme.md: dialogs open
+               partly off a phone's screen) -->
+          <button name="btnDeleteCompleted" text="Delete completed orders"/>
+          <panel name="deleteConfirm" type="rows" gap="6" hide="true">
+            <label name="lblDeleteConfirm" ellipsis="false" text="Delete every completed work order? This cannot be undone."/>
+            <panel name="deleteConfirmActions" type="columns" gap="8">
+              <button name="btnDeleteYes"    text="Yes, delete"/>
+              <button name="btnDeleteCancel" text="Cancel"/>
+            </panel>
+          </panel>
         </panel>
 
       </tabstrip>
+
+      <screen name="screen"/>
     </panel>
   </view>
 
   <!-- ============================================================ Logic -->
   <process xlink:actuate="onRequest" name="PdmProcess" description="Predictive maintenance - Process">
 
-    <!-- Until the view signals it is loaded, bindings cannot be done -->
-    <trigger view="PdmView" event="Opened" step="init"/>
+    <!-- Loaded (not Opened): the docs say Loaded still fires for a process that loads after the view,
+         which is the case here because the process waits for the login app -->
+    <trigger view="PdmView" event="Loaded" step="init"/>
 
     <trigger view="PdmView" component="fleetGrid"   event="Select" step="assetSelected"/>
     <trigger view="PdmView" component="alertsGrid"  event="Select" step="alertSelected"/>
@@ -147,6 +193,13 @@
     <trigger view="PdmView" component="btnStart"    event="Select" step="orderStart"/>
     <trigger view="PdmView" component="btnComplete" event="Select" step="orderComplete"/>
     <trigger view="PdmView" component="btnReject"   event="Select" step="orderReject"/>
+    <trigger view="PdmView" component="btnSignOut"  event="Select" step="signOut"/>
+    <trigger view="PdmView" component="screen"        event="Screen" step="screenChanged"/>
+    <trigger view="PdmView" component="btnDeleteCompleted" event="Select" step="askDeleteCompleted"/>
+    <trigger view="PdmView" component="btnDeleteYes"       event="Select" step="deleteCompleted"/>
+    <trigger view="PdmView" component="btnDeleteCancel"    event="Select" step="hideDeleteConfirm"/>
+    <trigger view="PdmView" component="btnBackFleet"  event="Select" step="backToFleet"/>
+    <trigger view="PdmView" component="btnBackAlerts" event="Select" step="backToAlerts"/>
 
     <!-- ======================== start-up -->
     <step id="init">
@@ -162,12 +215,85 @@
 
       <operation name="callMethod" value="#PdmView#lblSummary">
         <method name="setValue">
-          <param type="string">{$fleet#/fleet/@assets} assets · {$fleet#/fleet/summary/count[@status='Failed']/@n} failed · {$fleet#/fleet/summary/count[@status='Critical']/@n} critical · {$fleet#/fleet/summary/count[@status='Warning']/@n} warning · data from {$fleet#/fleet/@exported}</param>
+          <param type="string">{$fleet#/fleet/@assets} assets &#183; {$fleet#/fleet/summary/count[@status='Failed']/@n} failed &#183; {$fleet#/fleet/summary/count[@status='Critical']/@n} critical &#183; {$fleet#/fleet/summary/count[@status='Warning']/@n} warning &#183; data from {$fleet#/fleet/@exported}</param>
         </method>
       </operation>
 
       <!-- the platform's login app ran first, so home:// is the signed-in user's own database -->
       <operation name="call" value="openOrders"/>
+
+      <!-- phone, tablet or desktop: the design kit's Screen component measures the window -->
+      <alias name="screen" value="{#PdmView#screen.getValue()}" model="value"/>
+      <operation name="call" value="applyScreen"/>
+    </step>
+
+    <!-- ======================== screen size (pattern from the plugin's design-kit process) -->
+    <step id="screenChanged">
+      <alias name="screen" value="{#PdmView#screen%screen}" model="value"/>
+      <operation name="call" value="applyScreen"/>
+    </step>
+
+    <step id="applyScreen">
+      <operation name="decision">
+        <when test="'{$screen}' = 'phone'">
+          <!-- one card at a time: the lists first, a detail only after a pick -->
+          <operation name="action" value="#PdmView">
+            <component name="assetPanel"    action="hide"/>
+            <component name="dispatchPanel" action="hide"/>
+            <component name="fleetCard"     action="show"/>
+            <component name="alertsCard"    action="show"/>
+            <component name="btnBackFleet"  action="show"/>
+            <component name="btnBackAlerts" action="show"/>
+          </operation>
+          <!-- only the columns that fit 390 px; the rest is in the detail after a pick -->
+          <operation name="callMethod" value="#PdmView#fleetGrid"><method name="hideColumn"><param type="string">colRank</param></method></operation>
+          <operation name="callMethod" value="#PdmView#fleetGrid"><method name="hideColumn"><param type="string">colRul</param></method></operation>
+          <operation name="callMethod" value="#PdmView#fleetGrid"><method name="hideColumn"><param type="string">colAlerts</param></method></operation>
+          <operation name="callMethod" value="#PdmView#alertsGrid"><method name="hideColumn"><param type="string">colAlRaised</param></method></operation>
+          <operation name="callMethod" value="#PdmView#alertsGrid"><method name="hideColumn"><param type="string">colAlIssue</param></method></operation>
+          <operation name="callMethod" value="#PdmView#assetAlertsGrid"><method name="hideColumn"><param type="string">colAaRaised</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="hideColumn"><param type="string">colWoId</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="hideColumn"><param type="string">colWoPriority</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="hideColumn"><param type="string">colWoAssignee</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="hideColumn"><param type="string">colWoDue</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="hideColumn"><param type="string">colWoIssue</param></method></operation>
+        </when>
+        <otherwise>
+          <operation name="action" value="#PdmView">
+            <component name="assetPanel"    action="show"/>
+            <component name="dispatchPanel" action="show"/>
+            <component name="fleetCard"     action="show"/>
+            <component name="alertsCard"    action="show"/>
+            <component name="btnBackFleet"  action="hide"/>
+            <component name="btnBackAlerts" action="hide"/>
+          </operation>
+          <operation name="callMethod" value="#PdmView#fleetGrid"><method name="showColumn"><param type="string">colRank</param></method></operation>
+          <operation name="callMethod" value="#PdmView#fleetGrid"><method name="showColumn"><param type="string">colRul</param></method></operation>
+          <operation name="callMethod" value="#PdmView#fleetGrid"><method name="showColumn"><param type="string">colAlerts</param></method></operation>
+          <operation name="callMethod" value="#PdmView#alertsGrid"><method name="showColumn"><param type="string">colAlRaised</param></method></operation>
+          <operation name="callMethod" value="#PdmView#alertsGrid"><method name="showColumn"><param type="string">colAlIssue</param></method></operation>
+          <operation name="callMethod" value="#PdmView#assetAlertsGrid"><method name="showColumn"><param type="string">colAaRaised</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="showColumn"><param type="string">colWoId</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="showColumn"><param type="string">colWoPriority</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="showColumn"><param type="string">colWoAssignee</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="showColumn"><param type="string">colWoDue</param></method></operation>
+          <operation name="callMethod" value="#PdmView#ordersGrid"><method name="showColumn"><param type="string">colWoIssue</param></method></operation>
+        </otherwise>
+      </operation>
+    </step>
+
+    <step id="backToFleet">
+      <operation name="action" value="#PdmView">
+        <component name="assetPanel" action="hide"/>
+        <component name="fleetCard"  action="show"/>
+      </operation>
+    </step>
+
+    <step id="backToAlerts">
+      <operation name="action" value="#PdmView">
+        <component name="dispatchPanel" action="hide"/>
+        <component name="alertsCard"    action="show"/>
+      </operation>
     </step>
 
     <!-- ======================== work orders -->
@@ -177,12 +303,14 @@
         <when exists="true">
           <operation name="call" value="loadOrders"/>
         </when>
-        <when exists="false">
+        <!-- the decision docs: exists can only be true ("setting it to false will not execute the
+             statement"), so the first-run branch is the otherwise -->
+        <otherwise>
           <operation name="database" value="host://data/workorders.xml">
             <copy to="home://" silent="true"/>
           </operation>
           <operation name="call" value="loadOrders"/>
-        </when>
+        </otherwise>
       </operation>
     </step>
 
@@ -202,7 +330,7 @@
         <method name="setValue"><param type="string">{$asset#@name}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetType">
-        <method name="setValue"><param type="string">{$asset#@typeName} · {$asset#@id}</param></method>
+        <method name="setValue"><param type="string">{$asset#@typeName} &#183; {$asset#@id}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetStatus">
         <method name="setValue"><param type="string">Status: {$asset#@status} (priority #{$asset#@rank})</param></method>
@@ -211,7 +339,7 @@
         <method name="setValue"><param type="string">Health index: {$asset#@health} / 100</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetRul">
-        <method name="setValue"><param type="string">Estimated remaining life: {$asset#@rulText} (80 % interval {$asset#@rulLow}–{$asset#@rulHigh} {$asset#@unit})</param></method>
+        <method name="setValue"><param type="string">Estimated remaining life: {$asset#@rulText} (80 % interval {$asset#@rulLow}&#8211;{$asset#@rulHigh} {$asset#@unit})</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetDriver">
         <method name="setValue"><param type="string">Main driver: {$asset#@topDriver}</param></method>
@@ -229,13 +357,21 @@
       <operation name="bind" value="host://data/history/{!#@id}.xml">
         <component view="PdmView" name="assetAlertsGrid" select="history"/>
       </operation>
+      <operation name="decision">
+        <when test="'{$screen}' = 'phone'">
+          <operation name="action" value="#PdmView">
+            <component name="fleetCard"  action="hide"/>
+            <component name="assetPanel" action="show"/>
+          </operation>
+        </when>
+      </operation>
     </step>
 
     <!-- ======================== alerts: prepare the dispatch form -->
     <step id="alertSelected">
       <alias name="alert" value="!"/>
       <operation name="callMethod" value="#PdmView#lblAlertAsset">
-        <method name="setValue"><param type="string">{$alert#@assetName} · {$alert#@level} alert, raised {$alert#@raised}</param></method>
+        <method name="setValue"><param type="string">{$alert#@assetName} &#183; {$alert#@level} alert, raised {$alert#@raised}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAlertIssue">
         <method name="setValue"><param type="string">Issue: {$alert#@issue}</param></method>
@@ -254,6 +390,14 @@
       </operation>
       <operation name="action" value="#PdmView">
         <component name="btnDispatch" action="enable"/>
+      </operation>
+      <operation name="decision">
+        <when test="'{$screen}' = 'phone'">
+          <operation name="action" value="#PdmView">
+            <component name="alertsCard"    action="hide"/>
+            <component name="dispatchPanel" action="show"/>
+          </operation>
+        </when>
       </operation>
     </step>
 
@@ -279,13 +423,20 @@
 
     <step id="refreshOrders">
       <operation name="save" value="home://workorders.xml"/>
+      <!-- The grid redraws itself (datachange="true", grid docs) and update refreshes it from its bound data
+           (update method docs). It is NOT bound again here: every bind added another binding to the same
+           grid, and after a few saves a row click hit a stale one
+           ("Cannot read properties of null (reading 'rows')" in selectRow, 2026-11-19). -->
+      <operation name="callMethod" value="#PdmView#ordersGrid">
+        <method name="update"/>
+      </operation>
     </step>
 
     <!-- ======================== work orders: technician updates -->
     <step id="orderSelected">
       <alias name="order" value="!"/>
       <operation name="callMethod" value="#PdmView#lblOrder">
-        <method name="setValue"><param type="string">{$order#@id} · {$order#@assetName} · {$order#@status}</param></method>
+        <method name="setValue"><param type="string">{$order#@id} &#183; {$order#@assetName} &#183; {$order#@status} &#183; due {$order#@due}</param></method>
       </operation>
       <operation name="action" value="#PdmView">
         <component name="btnStart"    action="enable"/>
@@ -319,6 +470,55 @@
       <operation name="call" value="refreshOrders"/>
       <operation name="callMethod" value="#PdmView#lblOrder">
         <method name="setValue"><param type="string">Saved.</param></method>
+      </operation>
+    </step>
+    <!-- ======================== work orders: delete the completed ones -->
+    <step id="askDeleteCompleted">
+      <operation name="action" value="#PdmView">
+        <component name="btnDeleteCompleted" action="hide"/>
+        <component name="deleteConfirm"      action="show"/>
+      </operation>
+    </step>
+
+    <step id="hideDeleteConfirm">
+      <operation name="action" value="#PdmView">
+        <component name="deleteConfirm"      action="hide"/>
+        <component name="btnDeleteCompleted" action="show"/>
+      </operation>
+    </step>
+
+    <step id="deleteCompleted">
+      <!-- change > delete with an XPath select (the docs' change operation: "Deleting data is done ... by supplying
+           an XPath expression in the select attribute"), then save, as for every other work-order write -->
+      <operation name="change" value="home://workorders.xml">
+        <delete select="/workorders/workorder[@status='completed']"/>
+      </operation>
+      <operation name="call" value="refreshOrders"/>
+      <!-- the selected order may be gone: reset the selection line and the buttons -->
+      <operation name="action" value="#PdmView">
+        <component name="btnStart"    action="disable"/>
+        <component name="btnComplete" action="disable"/>
+        <component name="btnReject"   action="disable"/>
+      </operation>
+      <operation name="call" value="hideDeleteConfirm"/>
+      <operation name="decision" value="home://workorders.xml">
+        <when test="count(/workorders/workorder[@status='completed']) = 0">
+          <operation name="callMethod" value="#PdmView#lblOrder">
+            <method name="setValue"><param type="string">Completed work orders deleted.</param></method>
+          </operation>
+        </when>
+        <otherwise>
+          <operation name="callMethod" value="#PdmView#lblOrder">
+            <method name="setValue"><param type="string">Some completed work orders were not deleted. Reload and try again.</param></method>
+          </operation>
+        </otherwise>
+      </operation>
+    </step>
+
+    <!-- ======================== sign out (kept session needs a way out) -->
+    <step id="signOut">
+      <operation name="system">
+        <logout silent="true"/>
       </operation>
     </step>
   </process>

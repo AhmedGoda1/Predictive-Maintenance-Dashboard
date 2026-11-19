@@ -1,0 +1,19 @@
+{
+  "name": "pdm-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Android test wrapper for the XIOS3 predictive maintenance app (Capacitor, loads the deployed site)",
+  "scripts": {
+    "add:android": "cap add android",
+    "sync": "cap sync android",
+    "open": "cap open android",
+    "run": "cap run android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/core": "8.6.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  }
+}
