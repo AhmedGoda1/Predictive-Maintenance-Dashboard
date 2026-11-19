@@ -142,6 +142,9 @@
     <trigger view="PdmView" component="btnDispatch" event="Select" step="dispatch"/>
     <trigger view="PdmView" component="ordersGrid"  event="Select" step="orderSelected"/>
     <trigger view="PdmView" component="btnLogin"    event="Select" step="login"/>
+    <!-- events of the CloudBackend database channel opened in init (communicator name as in the docs' example) -->
+    <trigger communicator="xios" event="Authorized"   step="signedIn"/>
+    <trigger communicator="xios" event="LoginFailure" step="loginFailed"/>
     <trigger view="PdmView" component="btnStart"    event="Select" step="orderStart"/>
     <trigger view="PdmView" component="btnComplete" event="Select" step="orderComplete"/>
     <trigger view="PdmView" component="btnReject"   event="Select" step="orderReject"/>
@@ -164,9 +167,15 @@
         </method>
       </operation>
 
-      <!-- work orders need a signed-in user; until then dispatch stays off -->
-      <operation name="action" value="#PdmView">
-        <component name="btnDispatch" action="disable"/>
+      <!-- Open the CloudBackend database channel (gives the home:// drive once a user signs in).
+           Taken from the docs' "CloudBackend channel : XML Database" example. -->
+      <operation name="channel" value="https://api.cloudbackend.com/v1/">
+        <name>cbe</name>
+        <drive name="xios">home</drive>
+        <title>CloudBackend</title>
+        <protocol>XMLDB</protocol>
+        <authentication type="basic"/>
+        <language>https://cloudbackend.com/xmldb.xsd</language>
       </operation>
     </step>
 
@@ -176,11 +185,20 @@
         <username>{#PdmView#loginUser}</username>
         <password>{#PdmView#loginPass}</password>
       </operation>
-      <operation name="callMethod" value="#PdmView#lblLogin">
-        <method name="setValue"><param type="string">Signed in as {#PdmView#loginUser}.</param></method>
-      </operation>
       <operation name="callMethod" value="#PdmView#loginPass">
         <method name="setValue"><param type="string"></param></method>
+      </operation>
+    </step>
+
+    <step id="loginFailed">
+      <operation name="callMethod" value="#PdmView#lblLogin">
+        <method name="setValue"><param type="string">Sign-in failed. Check the username and password.</param></method>
+      </operation>
+    </step>
+
+    <step id="signedIn">
+      <operation name="callMethod" value="#PdmView#lblLogin">
+        <method name="setValue"><param type="string">Signed in as {#PdmView#loginUser}.</param></method>
       </operation>
       <operation name="action" value="#PdmView">
         <component name="loginUser" action="hide"/>
