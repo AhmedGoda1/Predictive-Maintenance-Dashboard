@@ -109,7 +109,8 @@
         <!-- ======================== Work orders: technician view -->
         <panel name="tabOrders" type="rows" gap="8" title="Work orders">
 
-          <grid name="ordersGrid" height="auto" selection="row" datachange="false">
+          <!-- datachange="true": the grid redraws itself when its bound document changes -->
+          <grid name="ordersGrid" height="auto" selection="row" datachange="true">
             <row match="workorder" height="28">
               <column width="90"  name="Order"      match="@id"        display="."/>
               <column width="170" name="Asset"      match="@assetName" display="."/>
@@ -274,13 +275,8 @@
       <operation name="call" value="refreshOrders"/>
     </step>
 
-    <!-- save, drop the cached copy and bind the saved document again, so the grid shows the change -->
     <step id="refreshOrders">
       <operation name="save" value="home://workorders.xml"/>
-      <operation name="close" value="home://workorders.xml">
-        <mode>document_cache</mode>
-      </operation>
-      <operation name="call" value="loadOrders"/>
     </step>
 
     <!-- ======================== work orders: technician updates -->
