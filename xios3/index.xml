@@ -6,7 +6,7 @@
     host://data/fleet.xml            fleet in priority order      (written by scripts/export_xios3.py)
     host://data/alerts.xml           all alerts, newest first     (written by scripts/export_xios3.py)
     host://data/history/<id>.xml     health history per asset     (written by scripts/export_xios3.py)
-    home://Documents/workorders.xml  work orders, created and updated by this app; copied from
+    home://workorders.xml  work orders, created and updated by this app; copied from
                                      host://data/workorders.xml the first time a user opens the app
                                      (host:// is read-only once deployed; home:// needs the login app below)
 -->
@@ -171,14 +171,14 @@
 
     <!-- ======================== work orders -->
     <step id="openOrders">
-      <!-- The work-order document lives in the user's Documents; create it the first time -->
-      <operation name="decision" value="home://Documents/workorders.xml">
+      <!-- The work-order document lives in the signed-in user's home folder; create it the first time -->
+      <operation name="decision" value="home://workorders.xml">
         <when exists="true">
           <operation name="call" value="loadOrders"/>
         </when>
         <when exists="false">
           <operation name="database" value="host://data/workorders.xml">
-            <copy to="home://Documents/" silent="true"/>
+            <copy to="home://" silent="true"/>
           </operation>
           <operation name="call" value="loadOrders"/>
         </when>
@@ -186,7 +186,7 @@
     </step>
 
     <step id="loadOrders">
-      <alias name="orders" value="home://Documents/workorders.xml" model="data"/>
+      <alias name="orders" value="home://workorders.xml" model="data"/>
       <operation name="bind" value="$orders">
         <component view="PdmView" name="ordersGrid" select="workorders"/>
       </operation>
@@ -275,7 +275,7 @@
       <operation name="callMethod" value="#PdmView#lblDispatchResult">
         <method name="setValue"><param type="string">Work order WO-{$alert#@id} dispatched.</param></method>
       </operation>
-      <operation name="save" value="home://Documents/workorders.xml"/>
+      <operation name="save" value="home://workorders.xml"/>
     </step>
 
     <!-- ======================== work orders: technician updates -->
@@ -313,7 +313,7 @@
     </step>
 
     <step id="saveOrders">
-      <operation name="save" value="home://Documents/workorders.xml"/>
+      <operation name="save" value="home://workorders.xml"/>
       <operation name="callMethod" value="#PdmView#lblOrder">
         <method name="setValue"><param type="string">Saved.</param></method>
       </operation>

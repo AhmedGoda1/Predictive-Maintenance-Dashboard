@@ -17,7 +17,7 @@ data in CloudBackend.
 | `index.xml` | Application manifest: the view and the process (triggers and steps). CloudBackend deployments expect this name. |
 | `index.html` | Boot page for the deployed site. Pressing ▶ in VS Code rewrites it for local use, so upload this version. |
 | `data/fleet.xml`, `data/alerts.xml`, `data/history/*.xml` | Pipeline results, written by `python scripts/export_xios3.py` |
-| `data/workorders.xml` | Empty starting document. The first time a user opens the app, it copies it to their `home://Documents/workorders.xml` and saves work orders there. Files uploaded with the app (`host://`) are read-only once deployed, and `home://` only exists for a signed-in user, which is why the manifest starts the platform's login application (`xios://apps/login.xml`) first. |
+| `data/workorders.xml` | Empty starting document. The first time a user opens the app, it copies it to their `home://workorders.xml` and saves work orders there. Files uploaded with the app (`host://`) are read-only once deployed, and `home://` only exists for a signed-in user, which is why the manifest starts the platform's login application (`xios://apps/login.xml`) first. |
 
 ## Refresh the data
 
@@ -43,4 +43,4 @@ adjustment on the first deployment:
 - the data format of the health chart (`<serie>` / `<axis>` at the top of each history file);
 - `host://data/...` as the path to files uploaded with the app;
 - aliases set in one step (`$fleet`, `$alerts`, `$orders`, `$alert`) being visible in later steps;
-- the first-run copy of `workorders.xml` into `home://Documents/`.
+- the first-run copy of `workorders.xml` into `home://`.
