@@ -1,13 +1,12 @@
-"""Presentation mode: the dashboard as a pitch to a prospective customer, or as a course project presentation.
+"""Presentation mode: the dashboard as a course project presentation.
 
-Turned on from the sidebar (admins only) or with a link such as `?present=1&customer=Acme%20Aero`
-(`&audience=course` for the course presentation). It
-- brands the app with the customer's name, tagline, logo and accent colour (the Customize panel),
+Turned on from the sidebar (admins only) or with a link such as `?present=1&team=Joni%2C%20Ahmed`. It
+- brands the app with the project title, subtitle, team, logo and accent colour (the Customize panel, which is
+  hidden while the guided tour runs),
 - gives assets plain names ("Engine 07" instead of "FD001-test-071"),
 - hides the developer panels (MQTT, auto-refresh, model internals in the tables) and the Streamlit chrome,
-- runs a guided tour: Next / Back moves the app itself to the view, asset, tab and replay position of each step.
-
-The course presentation adds the problem, the architecture, the model's results and its limitations to the tour.
+- runs a guided tour: Next / Back moves the app itself to the view, asset, tab and replay position of each step,
+  from the problem and the users through the architecture, the live demo, testing and results to lessons learned.
 
 Everything lives in the viewer's session, so one presenter never changes what other users see. The data is the
 recorded replay, which works with nothing else running.
@@ -23,34 +22,14 @@ import streamlit as st
 
 import data_source as ds
 
-VIEWS = ["Fleet", "Asset detail", "Technician view", "Mobile app", "Next steps"]
-COURSE_VIEWS = ["Problem", "Users", "Requirements", "Architecture", "Fleet", "Asset detail", "Technician view",
-                "Mobile app", "Testing", "Results", "Lessons learned"]
+VIEWS = ["Problem", "Users", "Requirements", "Architecture", "Fleet", "Asset detail", "Technician view",
+         "Mobile app", "Testing", "Results", "Lessons learned"]
 TESTS_DIR = ds.ROOT / "tests"
-AUDIENCES = {"pitch": "Customer pitch", "course": "Course presentation"}
 METRICS_FILE = ds.ROOT / "models" / "cmapss_metrics.json"
 # the XIOS3 technician app on CloudBackend (xios3/) and its Android test wrapper (mobile/)
 MOBILE_APP_URL = "https://jodu-joduowner-pdmtechnician.cloudbackend.cloud/"
 ALL_TYPES = "All types"          # the fleet view's "no type filter" value
 
-DEFAULTS = {
-    "customer": "Your Company",
-    "tagline": "Predictive maintenance: fix it before it fails",
-    "accent": "#2a78d6",
-    "logo": "",
-    "site": "",
-    "cta": "Suggested next step: a pilot on a handful of your assets.",
-    "team": "",
-    "audience": "pitch",
-    "went_well": "",
-    "improve": "",
-}
-# the course presentation starts from these instead of the customer wording
-COURSE_DEFAULTS = {
-    "customer": "Predictive Maintenance for IoT",
-    "tagline": "Course project: from sensor data to a finished repair",
-    "cta": "Thank you. Questions?",
-}
 DEFAULT_LESSONS = {
     "went_well": "Separating ingestion from the transport: the same code scores MQTT, CSV and recorded data.\n"
                  "Testing against a real MQTT broker found problems that mocks would have hidden.\n"
@@ -60,13 +39,21 @@ DEFAULT_LESSONS = {
                "Collect more than one run-to-failure for the motor, so its estimate can be validated.\n"
                "Plan the database for scale: one SQLite file is fine for a demo, not for a large fleet.",
 }
-COURSE_DEFAULTS.update(DEFAULT_LESSONS)
+DEFAULTS = {
+    "customer": "Predictive Maintenance for IoT",
+    "tagline": "Course project: from sensor data to a finished repair",
+    "accent": "#2a78d6",
+    "logo": "",
+    "site": "",
+    "cta": "Thank you. Questions?",
+    "team": "",
+    **DEFAULT_LESSONS,
+}
 # plain nouns for the asset types; any other registered type falls back to its registry name
 TYPE_NOUNS = {"turbofan_engine": "Engine", "brushed_dc_motor": "Drive motor", "li_ion_battery": "Battery pack"}
-PROFILE_FIELDS = ["audience", "customer", "tagline", "team", "accent", "logo", "site", "cta", "went_well",
-                  "improve"]
-NEW_PROFILE = "➕ New customer"
-QUERY_KEYS = {"audience": "audience", "customer": "customer", "tagline": "tagline", "team": "team",
+PROFILE_FIELDS = ["customer", "tagline", "team", "accent", "logo", "site", "cta", "went_well", "improve"]
+NEW_PROFILE = "➕ New profile"
+QUERY_KEYS = {"customer": "customer", "tagline": "tagline", "team": "team",
               "accent": "accent", "logo": "logo", "site": "site"}
 
 
@@ -85,48 +72,6 @@ FLEET_TABS = ["📋 Maintenance priority", "🚨 Open alerts", "🧠 Models & da
 ASSET_TABS = ["📊 Health Overview", "🔍 Sensor Inspector", "🚨 Alerts & Actions", "🧠 Model & Data"]
 
 TOUR = [
-    Step("Every machine on one screen",
-         "Each asset's sensors are turned into one health score from 0 to 100 and a status anyone can read. "
-         "This is the fleet early in its life: everything is healthy.",
-         "Fleet", fleet_pct=15, tab=FLEET_TABS[0]),
-    Step("Watch problems appear before they become failures",
-         "The replay compresses months of operation into seconds. Watch assets drift from healthy to warning to "
-         "critical, while there is still time to act.",
-         "Fleet", fleet_pct=15, fleet_play=True, tab=FLEET_TABS[0]),
-    Step("Know what to fix first",
-         "Assets are ranked by urgency: worst status first, then the shortest remaining life, each with an 80% "
-         "range. Your planners get one list instead of a wall of sensor charts.",
-         "Fleet", fleet_pct=100, tab=FLEET_TABS[0]),
-    Step("Every open alert, fleet-wide",
-         "Each alert says what was detected and what to do about it, so nothing waits for someone to read raw data.",
-         "Fleet", fleet_pct=100, tab=FLEET_TABS[1]),
-    Step("Drill into the asset most at risk",
-         "One click opens any asset: its health falling as it wears, and how long it has left, so the repair fits "
-         "the next planned stop instead of following a breakdown.",
-         "Asset detail", asset_play=True, tab=ASSET_TABS[0]),
-    Step("From alert to work order in one click",
-         "Open the newest alert and press Dispatch Work Order. It goes to the maintenance team, or straight into the "
-         "maintenance system you already use.",
-         "Asset detail", tab=ASSET_TABS[2]),
-    Step("What the technician sees",
-         "Technicians log in to their own simple page: open work orders, most urgent first. Press Start work or "
-         "Complete, as a technician would.",
-         "Technician view"),
-    Step("The loop closes",
-         "Back in the office, the alert shows the technician's update the moment it is made. Every step from sensor "
-         "to finished repair is on record.",
-         "Asset detail", tab=ASSET_TABS[2]),
-    Step("On the technician's phone",
-         "The same fleet, alerts and work orders also run as a mobile app on the CloudBackend platform. Technicians "
-         "sign in on their phone, dispatch and update work orders on site, and the list adapts to a small screen.",
-         "Mobile app"),
-    Step("Your equipment, next",
-         "Any sensor that can send data connects the same way, and new kinds of equipment are added without "
-         "changing the dashboard.",
-         "Next steps"),
-]
-
-COURSE_TOUR = [
     # 1. the problem
     Step("The problem",
          "Machines fail without warning, and fixed maintenance intervals replace parts that still had life left. "
@@ -200,7 +145,8 @@ COURSE_TOUR = [
 def init() -> None:
     """Reads the presentation settings from the link once per session, and keeps them while the panel is hidden."""
     ss = st.session_state
-    for key in [k for k in ss if (k.startswith("brand_") or k.startswith("noun_")) and k != "brand_logo_file"]:
+    for key in [k for k in ss if (k.startswith("brand_") or k.startswith("noun_") or k == "profile_pick")
+                and k != "brand_logo_file"]:
         ss[key] = ss[key]               # a widget's value would otherwise be dropped on a run that does not draw it
     if ss.get("_present_init"):
         return
@@ -211,12 +157,6 @@ def init() -> None:
         ss.setdefault(f"brand_{field}", params.get(query) or DEFAULTS[field])
     for field in ("cta", "went_well", "improve"):
         ss.setdefault(f"brand_{field}", DEFAULTS[field])
-    if ss["brand_audience"] not in AUDIENCES:
-        ss["brand_audience"] = DEFAULTS["audience"]
-    if ss["brand_audience"] == "course":
-        for field, value in COURSE_DEFAULTS.items():
-            if ss.get(f"brand_{field}") == DEFAULTS[field]:
-                ss[f"brand_{field}"] = value
     accent = "#" + ss["brand_accent"].lstrip("#")         # a link may leave out the "#" (it must be escaped there)
     ss["brand_accent"] = accent if _valid_color(accent) else DEFAULTS["accent"]
 
@@ -225,17 +165,12 @@ def active() -> bool:
     return bool(st.session_state.get("present"))
 
 
-def course() -> bool:
-    """True for the course presentation, False for the customer pitch."""
-    return brand("audience") == "course"
-
-
 def views() -> list:
-    return COURSE_VIEWS if course() else VIEWS
+    return VIEWS
 
 
 def tour() -> list:
-    return COURSE_TOUR if course() else TOUR
+    return TOUR
 
 
 def brand(field: str) -> str:
@@ -266,9 +201,9 @@ def label(fleet: ds.Fleet, asset_id: str) -> str:
     return labels(fleet).get(asset_id, asset_id)
 
 
-# ---------------------------------------------------------------- customer profiles
+# ---------------------------------------------------------------- presentation profiles
 def _profiles() -> dict:
-    """{customer name: settings} saved in this session; switch between them during a meeting day."""
+    """{project title: settings} saved in this session; switch between them, e.g. one per course or audience."""
     return st.session_state.setdefault("profiles", {})
 
 
@@ -291,12 +226,9 @@ def load_profile() -> None:
     ss = st.session_state
     pick = ss.get("profile_pick")
     profile = _profiles().get(pick) if pick != NEW_PROFILE else {
-        **DEFAULTS, **(COURSE_DEFAULTS if course() else {}), "audience": brand("audience"), "customer": "",
-        "nouns": {}, "logo_bytes": None}
+        **DEFAULTS, "customer": "", "nouns": {}, "logo_bytes": None}
     if profile is None:
         return
-    if profile.get("audience", DEFAULTS["audience"]) != brand("audience"):
-        end_tour()                          # the two audiences have different tours
     for f in PROFILE_FIELDS:
         ss[f"brand_{f}"] = profile.get(f, DEFAULTS[f])
     ss["brand_logo_bytes"] = profile.get("logo_bytes")
@@ -340,8 +272,6 @@ def import_profiles() -> None:
                 p["logo_bytes"] = base64.b64decode(p["logo_bytes"])
             if p.get("accent") and not _valid_color(p["accent"]):
                 p["accent"] = DEFAULTS["accent"]
-            if p.get("audience") not in AUDIENCES:
-                p["audience"] = DEFAULTS["audience"]
             _profiles()[str(name)] = p
         st.session_state["_profile_saved"] = f"{len(data)} profile(s) loaded"
     except (ValueError, TypeError, AttributeError):
@@ -360,59 +290,32 @@ def _sync_link() -> None:
         st.session_state.pop("tour_step", None)
 
 
-def _audience_changed() -> None:
-    """Swaps the untouched default wording for the other audience's, and restarts the tour (it differs)."""
-    ss = st.session_state
-    to_course = course()
-    for field, value in COURSE_DEFAULTS.items():
-        old, new = (DEFAULTS[field], value) if to_course else (value, DEFAULTS[field])
-        if ss.get(f"brand_{field}") == old:
-            ss[f"brand_{field}"] = new
-    end_tour()
-    _sync_link()
-
-
-def _checklist() -> None:
-    with st.sidebar.expander("✅ Before you present", expanded=False):
-        st.markdown(
-            "- Do a full dry run of the tour on the computer and screen you will present with.\n"
-            "- **Dispatch, Start work and Complete are real actions on the shared database**: everyone using the "
-            "app sees them. Dispatch the work order once in the dry run, then only point at it during the talk.\n"
-            "- Save the profile and press *Download profiles*: a browser refresh loses unsaved settings.\n"
-            "- Keep the presentation link (below the profile settings) to open everything in one click.")
-
-
 def sidebar(fleet: ds.Fleet) -> None:
-    """The on/off switch and, while on, the Customize panel and the tour button."""
+    """The on/off switch and, while on, the tour button, or the profile switcher and Customize panel between tours."""
     st.sidebar.toggle("🎤 Presentation mode", key="present", on_change=_sync_link,
-                      help="A clean, branded layout and a guided tour, for a customer pitch or a course presentation.")
+                      help="A clean, branded layout and a guided tour for the course presentation.")
     if not active():
         return
-    st.sidebar.radio("Audience", list(AUDIENCES), key="brand_audience", format_func=AUDIENCES.get,
-                     horizontal=True, on_change=_audience_changed)
-    is_course = course()
-    if st.session_state.get("tour_step") is None:
-        st.sidebar.button("▶ Start guided tour", key="tour_start", type="primary", width="stretch",
-                          on_click=go_to, args=(0, fleet))
-    if not _profiles():                   # the customer the link opened with is the first profile
+    if st.session_state.get("tour_step") is not None:
+        return                            # nothing to customize while presenting: the tour card has the controls
+    st.sidebar.button("▶ Start guided tour", key="tour_start", type="primary", width="stretch",
+                      on_click=go_to, args=(0, fleet))
+    if not _profiles():                   # the settings the link opened with are the first profile
         _profiles()[brand("customer")] = _current_profile()
     names = [*_profiles(), NEW_PROFILE]
     if st.session_state.get("profile_pick") not in names:
         st.session_state["profile_pick"] = names[0]
-    st.sidebar.selectbox("Profile" if is_course else "Customer", names, key="profile_pick", on_change=load_profile,
+    st.sidebar.selectbox("Profile", names, key="profile_pick", on_change=load_profile,
                          help="Switch between the profiles you saved; the whole app follows.")
-    with st.sidebar.expander("🎨 Customize this presentation" if is_course else "🎨 Customize for this customer",
-                             expanded=False):
-        st.caption("Changes show immediately. Save to switch back to this profile later.")
-        st.text_input("Project title" if is_course else "Customer name", key="brand_customer", on_change=_sync_link)
-        st.text_input("Subtitle" if is_course else "Tagline", key="brand_tagline", on_change=_sync_link)
-        if is_course:
-            st.text_input("Team members", key="brand_team", on_change=_sync_link, placeholder="e.g. Joni, Ahmed, ...")
-        st.text_input("Course and university (optional)" if is_course else "Site name (optional)", key="brand_site",
-                      on_change=_sync_link,
-                      placeholder="e.g. IoT project course, University of ..." if is_course else "e.g. Hamburg hangar 2")
-        st.color_picker("Accent colour (e.g. your university's)" if is_course else "Accent colour", key="brand_accent",
-                        on_change=_sync_link)
+    with st.sidebar.expander("🎨 Customize this presentation", expanded=False):
+        st.caption("Changes show immediately. Save to switch back to this profile later. "
+                   "This panel is hidden while the guided tour runs.")
+        st.text_input("Project title", key="brand_customer", on_change=_sync_link)
+        st.text_input("Subtitle", key="brand_tagline", on_change=_sync_link)
+        st.text_input("Team members", key="brand_team", on_change=_sync_link, placeholder="e.g. Joni, Ahmed, ...")
+        st.text_input("Course and university (optional)", key="brand_site", on_change=_sync_link,
+                      placeholder="e.g. IoT project course, University of ...")
+        st.color_picker("Accent colour (e.g. your university's)", key="brand_accent", on_change=_sync_link)
         st.text_input("Logo URL (optional)", key="brand_logo", on_change=_sync_link,
                       placeholder="https://.../logo.png")
         st.file_uploader("...or upload a logo", type=["png", "jpg", "jpeg", "svg", "webp"], key="brand_logo_file",
@@ -421,17 +324,15 @@ def sidebar(fleet: ds.Fleet) -> None:
         for type_id in sorted(fleet.assets["type_id"].unique()):
             st.session_state.setdefault(f"noun_{type_id}", type_noun(type_id))
             st.text_input(ds.registry.get_type(type_id).name, key=f"noun_{type_id}")
-        st.text_area("Closing line" if is_course else "Closing call to action", key="brand_cta", height=90)
-        if is_course:
-            st.text_area("Lessons learned: what went well (one per line)", key="brand_went_well", height=120)
-            st.text_area("Lessons learned: what we would improve (one per line)", key="brand_improve", height=140)
-        st.button("💾 Save profile" if is_course else "💾 Save customer profile", key="profile_save", width="stretch", type="primary",
-                  on_click=save_profile)
+        st.text_area("Closing line", key="brand_cta", height=90)
+        st.text_area("Lessons learned: what went well (one per line)", key="brand_went_well", height=120)
+        st.text_area("Lessons learned: what we would improve (one per line)", key="brand_improve", height=140)
+        st.button("💾 Save profile", key="profile_save", width="stretch", type="primary", on_click=save_profile)
         if "_profile_saved" in st.session_state:
             st.caption(f"Saved: {st.session_state.pop('_profile_saved')}")
         st.markdown("**All profiles**")
         st.caption("Profiles last while this browser tab is open. Download them to reuse in another session.")
-        st.download_button("⬇ Download profiles", export_profiles(), file_name="customer_profiles.json",
+        st.download_button("⬇ Download profiles", export_profiles(), file_name="presentation_profiles.json",
                            mime="application/json", key="profiles_download", width="stretch",
                            disabled=not _profiles())
         st.file_uploader("Load profiles", type=["json"], key="profiles_file", on_change=import_profiles)
@@ -440,10 +341,8 @@ def sidebar(fleet: ds.Fleet) -> None:
         st.code(base.split("?")[0] + "?" + urlencode({"present": 1, **{q: brand(f) for f, q in QUERY_KEYS.items()
                                                                           if brand(f) != DEFAULTS[f]}}),
                 language=None, wrap_lines=True)
-    _checklist()
 
 
-# ---------------------------------------------------------------- look
 def apply_styles() -> None:
     """Hides the Streamlit toolbar and footer, uses the accent colour, enlarges the headline numbers."""
     accent = brand("accent") if _valid_color(brand("accent")) else DEFAULTS["accent"]
@@ -464,17 +363,17 @@ def apply_styles() -> None:
 
 
 def banner() -> None:
-    """The customer's logo, name and tagline at the top of every page."""
+    """The logo, project title, subtitle and team at the top of every page."""
     logo = st.session_state.get("brand_logo_bytes") or brand("logo")
     site = f" · {html.escape(brand('site'))}" if brand("site") else ""
-    team = f'<p>{html.escape(brand("team"))}</p>' if course() and brand("team") else ""
+    team = f'<p>{html.escape(brand("team"))}</p>' if brand("team") else ""
     text = (f'<div class="pm-banner"><h1>{html.escape(brand("customer"))}</h1>'
             f'<p>{html.escape(brand("tagline"))}{site}</p>{team}</div>')
     if logo:
         left, right = st.columns([1, 9], vertical_alignment="center")
         try:
             left.image(logo, width="stretch")
-        except Exception:                 # an unreachable or broken logo must never break the pitch
+        except Exception:                 # an unreachable or broken logo must never break the talk
             pass
         right.html(text)
     else:
@@ -548,29 +447,12 @@ def tour_card(fleet: ds.Fleet) -> None:
         end.button("End tour", key="tour_end", width="stretch", on_click=end_tour)
 
 
-# ---------------------------------------------------------------- closing page
-def closing_page(fleet: ds.Fleet) -> None:
-    st.title(f"Next steps for {brand('customer')}")
-    n_types = fleet.assets["type_id"].nunique()
-    cards = [
-        ("🔌 Connect", "Sensors or a gateway send readings over MQTT, the standard IoT protocol, with encryption and "
-                      "one login per device. Existing data logs can be imported as CSV."),
-        ("🧩 Fit your equipment", f"{n_types} kinds of equipment are configured in this demo. A new kind is a short "
-                                 "description of its sensors and limits; the dashboard needs no changes."),
-        ("🔧 Fit your workflow", "Work orders go to the built-in technician page, or as a web request to the maintenance "
-                                "system you already use, which reports progress back."),
-    ]
-    _cards(cards)
-    st.markdown("---")
-    st.markdown(f"### {brand('cta')}")
-
-
 # ---------------------------------------------------------------- course presentation pages
 def page(view: str, fleet: ds.Fleet) -> None:
     """Draws one of presentation mode's own pages (the views that are not the dashboard itself)."""
     {"Problem": intro_page, "Users": users_page, "Requirements": requirements_page,
      "Architecture": architecture_page, "Mobile app": mobile_page, "Testing": testing_page, "Results": results_page,
-     "Lessons learned": lessons_page}.get(view, closing_page)(fleet)
+     "Lessons learned": lessons_page}[view](fleet)
 
 
 def _cards(cards: list) -> None:
@@ -663,9 +545,8 @@ def mobile_page(fleet: ds.Fleet) -> None:
     st.markdown("---")
     st.markdown(f"**Try it:** [{MOBILE_APP_URL}]({MOBILE_APP_URL}) (needs a CloudBackend account). "
                 "The code is in `xios3/` and `mobile/` of this repository.")
-    if course():
-        st.caption("Built with the CloudBackend developer docs and plugin: every component and operation was checked "
-                   "against the documentation, and the package against the plugin's linter, before each deploy.")
+    st.caption("Built with the CloudBackend developer docs and plugin: every component and operation was checked "
+               "against the documentation, and the package against the plugin's linter, before each deploy.")
 
 
 def _metrics() -> dict:
