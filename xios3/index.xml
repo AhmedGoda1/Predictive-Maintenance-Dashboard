@@ -57,7 +57,7 @@
             <label name="lblAssetLatest" text=""/>
             <label name="lblAssetAction" text=""/>
 
-            <chart name="healthChart" charttype="linechart" style="height: 220px;"/>
+            <chart name="healthChart" charttype="linechart" width="auto" height="200"/>
 
             <label text="Alerts for this asset" bold="true"/>
             <grid name="assetAlertsGrid" height="150" selection="row" datachange="false">
@@ -168,28 +168,28 @@
     <step id="assetSelected">
       <alias name="asset" value="!"/>
       <operation name="callMethod" value="#PdmView#lblAssetName">
-        <method name="setValue"><param type="string">{!#@name}</param></method>
+        <method name="setValue"><param type="string">{$asset#@name}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetType">
-        <method name="setValue"><param type="string">{!#@typeName} · {!#@id}</param></method>
+        <method name="setValue"><param type="string">{$asset#@typeName} · {$asset#@id}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetStatus">
-        <method name="setValue"><param type="string">Status: {!#@status} (priority #{!#@rank})</param></method>
+        <method name="setValue"><param type="string">Status: {$asset#@status} (priority #{$asset#@rank})</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetHealth">
-        <method name="setValue"><param type="string">Health index: {!#@health} / 100</param></method>
+        <method name="setValue"><param type="string">Health index: {$asset#@health} / 100</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetRul">
-        <method name="setValue"><param type="string">Estimated remaining life: {!#@rulText} (80 % interval {!#@rulLow}–{!#@rulHigh} {!#@unit})</param></method>
+        <method name="setValue"><param type="string">Estimated remaining life: {$asset#@rulText} (80 % interval {$asset#@rulLow}–{$asset#@rulHigh} {$asset#@unit})</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetDriver">
-        <method name="setValue"><param type="string">Main driver: {!#@topDriver}</param></method>
+        <method name="setValue"><param type="string">Main driver: {$asset#@topDriver}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetLatest">
-        <method name="setValue"><param type="string">Latest alert: {!#@latestIssue}</param></method>
+        <method name="setValue"><param type="string">Latest alert: {$asset#@latestIssue}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAssetAction">
-        <method name="setValue"><param type="string">Suggested action: {!#@latestAction}</param></method>
+        <method name="setValue"><param type="string">Suggested action: {$asset#@latestAction}</param></method>
       </operation>
 
       <operation name="bind" value="host://data/history/{!#@id}.xml">
@@ -204,19 +204,19 @@
     <step id="alertSelected">
       <alias name="alert" value="!"/>
       <operation name="callMethod" value="#PdmView#lblAlertAsset">
-        <method name="setValue"><param type="string">{!#@assetName} · {!#@level} alert, raised {!#@raised}</param></method>
+        <method name="setValue"><param type="string">{$alert#@assetName} · {$alert#@level} alert, raised {$alert#@raised}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAlertIssue">
-        <method name="setValue"><param type="string">Issue: {!#@issue}</param></method>
+        <method name="setValue"><param type="string">Issue: {$alert#@issue}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAlertAction">
-        <method name="setValue"><param type="string">Suggested action: {!#@action}</param></method>
+        <method name="setValue"><param type="string">Suggested action: {$alert#@action}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblAlertPriority">
-        <method name="setValue"><param type="string">Work-order priority: {!#@priority}</param></method>
+        <method name="setValue"><param type="string">Work-order priority: {$alert#@priority}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#woNote">
-        <method name="setValue"><param type="string">{!#@action}</param></method>
+        <method name="setValue"><param type="string">{$alert#@action}</param></method>
       </operation>
       <operation name="callMethod" value="#PdmView#lblDispatchResult">
         <method name="setValue"><param type="string"></param></method>
@@ -254,8 +254,9 @@
 
     <!-- ======================== work orders: technician updates -->
     <step id="orderSelected">
+      <alias name="order" value="!"/>
       <operation name="callMethod" value="#PdmView#lblOrder">
-        <method name="setValue"><param type="string">{!#@id} · {!#@assetName} · {!#@status}</param></method>
+        <method name="setValue"><param type="string">{$order#@id} · {$order#@assetName} · {$order#@status}</param></method>
       </operation>
       <operation name="action" value="#PdmView">
         <component name="btnStart"    action="enable"/>
