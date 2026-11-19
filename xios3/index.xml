@@ -7,8 +7,8 @@
     host://data/alerts.xml           all alerts, newest first     (written by scripts/export_xios3.py)
     host://data/history/<id>.xml     health history per asset     (written by scripts/export_xios3.py)
     home://Documents/workorders.xml  work orders, created and updated by this app; copied from
-                                     host://data/workorders.xml after the user signs in the first time
-                                     (host:// is read-only once deployed, and home:// needs a signed-in user)
+                                     host://data/workorders.xml the first time a user opens the app
+                                     (host:// is read-only once deployed; home:// needs the login app below)
 -->
 <application name="PdmTechnician" icon="icon://rocket" instances="0"
              xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -26,19 +26,21 @@
     <description>Predictive maintenance: fleet priority, asset health, alerts and work orders.</description>
   </about>
 
+  <!-- The platform's login application runs first: a deployment has no signed-in user otherwise,
+       and home:// (where work orders are saved) only exists for one. View and process wait for it. -->
+  <process xlink:actuate="onLoad" xlink:href="xios://apps/login.xml"/>
+
+  <login>
+    <title>Predictive Maintenance</title>
+    <description>Sign in to see the fleet and manage work orders.</description>
+    <copyright>Predictive Maintenance Dashboard</copyright>
+  </login>
+
   <!-- ============================================================ UI -->
-  <view name="PdmView" title="Predictive Maintenance" icon="icon://rocket" width="1200" height="760">
+  <view xlink:actuate="onRequest" name="PdmView" title="Predictive Maintenance" icon="icon://rocket" width="1200" height="760">
     <panel name="MainPanel" type="rows" padding="8" gap="8">
 
       <label name="lblSummary" size="14" bold="true" text="Loading fleet…"/>
-
-      <!-- Sign-in with a CloudBackend account: needed to save work orders -->
-      <panel name="loginPanel" type="columns" gap="8">
-        <input  name="loginUser" placeholder="CloudBackend username" width="180"/>
-        <input  name="loginPass" type="password" placeholder="Password" width="160"/>
-        <button name="btnLogin" text="Sign in" default="true"/>
-        <label  name="lblLogin" text="Sign in to dispatch and update work orders."/>
-      </panel>
 
       <tabstrip name="tabs" position="top" tabs="true">
 
@@ -132,7 +134,7 @@
   </view>
 
   <!-- ============================================================ Logic -->
-  <process name="PdmProcess" description="Predictive maintenance - Process">
+  <process xlink:actuate="onRequest" name="PdmProcess" description="Predictive maintenance - Process">
 
     <!-- Until the view signals it is loaded, bindings cannot be done -->
     <trigger view="PdmView" event="Opened" step="init"/>
@@ -141,11 +143,6 @@
     <trigger view="PdmView" component="alertsGrid"  event="Select" step="alertSelected"/>
     <trigger view="PdmView" component="btnDispatch" event="Select" step="dispatch"/>
     <trigger view="PdmView" component="ordersGrid"  event="Select" step="orderSelected"/>
-    <trigger view="PdmView" component="btnLogin"    event="Select" step="login"/>
-    <!-- events of the CloudBackend database channel opened in init (communicator name as in the docs' example) -->
-    <trigger communicator="xios" event="Login"        step="doLogin"/>
-    <trigger communicator="xios" event="Authorized"   step="signedIn"/>
-    <trigger communicator="xios" event="LoginFailure" step="loginFailed"/>
     <trigger view="PdmView" component="btnStart"    event="Select" step="orderStart"/>
     <trigger view="PdmView" component="btnComplete" event="Select" step="orderComplete"/>
     <trigger view="PdmView" component="btnReject"   event="Select" step="orderReject"/>
@@ -168,51 +165,13 @@
         </method>
       </operation>
 
+      <!-- the platform's login app ran first, so home:// is the signed-in user's own database -->
+      <operation name="call" value="openOrders"/>
     </step>
 
-    <!-- ======================== sign-in -->
-    <!-- Sign in button: open the CloudBackend database channel. It answers with a Login event
-         (communicator "xios"), and the login itself has to run in the step that event triggers. -->
-    <step id="login">
-      <!-- Opens the CloudBackend database channel (gives the home:// drive once a user signs in).
-           Taken from the docs' "CloudBackend channel : XML Database" example. -->
-      <operation name="channel" value="https://api.cloudbackend.com/v1/">
-        <name>cbe</name>
-        <drive name="xios">home</drive>
-        <title>CloudBackend</title>
-        <protocol>XMLDB</protocol>
-        <authentication type="basic"/>
-        <language>https://cloudbackend.com/xmldb.xsd</language>
-      </operation>
-    </step>
-
-    <step id="doLogin">
-      <operation name="login" value="cbe">
-        <username>{#PdmView#loginUser}</username>
-        <password>{#PdmView#loginPass}</password>
-      </operation>
-      <operation name="callMethod" value="#PdmView#loginPass">
-        <method name="setValue"><param type="string"></param></method>
-      </operation>
-    </step>
-
-    <step id="loginFailed">
-      <operation name="callMethod" value="#PdmView#lblLogin">
-        <method name="setValue"><param type="string">Sign-in failed. Check the username and password.</param></method>
-      </operation>
-    </step>
-
-    <step id="signedIn">
-      <operation name="callMethod" value="#PdmView#lblLogin">
-        <method name="setValue"><param type="string">Signed in as {#PdmView#loginUser}.</param></method>
-      </operation>
-      <operation name="action" value="#PdmView">
-        <component name="loginUser" action="hide"/>
-        <component name="loginPass" action="hide"/>
-        <component name="btnLogin"  action="hide"/>
-      </operation>
-
-      <!-- The work-order document lives in the user's Documents; create it on first sign-in -->
+    <!-- ======================== work orders -->
+    <step id="openOrders">
+      <!-- The work-order document lives in the user's Documents; create it the first time -->
       <operation name="decision" value="home://Documents/workorders.xml">
         <when exists="true">
           <operation name="call" value="loadOrders"/>
