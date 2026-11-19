@@ -226,29 +226,23 @@
       </operation>
     </step>
 
-    <!-- ======================== alerts: create the work order (one per alert) -->
+    <!-- ======================== alerts: create the work order -->
     <step id="dispatch">
-      <operation name="decision" value="$orders#/workorders/workorder[@alert='{$alert#@id}']">
-        <when exists="true">
-          <operation name="callMethod" value="#PdmView#lblDispatchResult">
-            <method name="setValue"><param type="string">This alert already has work order WO-{$alert#@id}.</param></method>
-          </operation>
-        </when>
-        <when exists="false">
-          <operation name="change" value="$orders">
-            <store select="/workorders" type="append">
-              <workorder id="WO-{$alert#@id}" alert="{$alert#@id}" asset="{$alert#@asset}"
-                         assetName="{$alert#@assetName}" priority="{$alert#@priority}" level="{$alert#@level}"
-                         status="dispatched" assignee="{#PdmView#woAssignee}" due="{#PdmView#woDue}"
-                         issue="{$alert#@issue}"
-                         note="{#PdmView#woNote}"/>
-            </store>
-          </operation>
-          <operation name="save" value="host://data/workorders.xml"/>
-          <operation name="callMethod" value="#PdmView#lblDispatchResult">
-            <method name="setValue"><param type="string">Work order WO-{$alert#@id} dispatched.</param></method>
-          </operation>
-        </when>
+      <operation name="change" value="$orders">
+        <store select="/workorders" type="append">
+          <workorder id="WO-{$alert#@id}" alert="{$alert#@id}" asset="{$alert#@asset}"
+                     assetName="{$alert#@assetName}" priority="{$alert#@priority}" level="{$alert#@level}"
+                     status="dispatched" assignee="{#PdmView#woAssignee}" due="{#PdmView#woDue}"
+                     issue="{$alert#@issue}" note="{#PdmView#woNote}"/>
+        </store>
+      </operation>
+      <operation name="save" value="host://data/workorders.xml"/>
+      <!-- one work order per alert: the button stays off until another alert is selected -->
+      <operation name="action" value="#PdmView">
+        <component name="btnDispatch" action="disable"/>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblDispatchResult">
+        <method name="setValue"><param type="string">Work order WO-{$alert#@id} dispatched.</param></method>
       </operation>
     </step>
 
