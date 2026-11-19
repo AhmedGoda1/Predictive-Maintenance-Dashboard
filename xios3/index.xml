@@ -264,10 +264,6 @@
                      issue="{$alert#@issue}" note="{#PdmView#woNote}"/>
         </store>
       </operation>
-      <!-- show the new order right away -->
-      <operation name="bind" value="$orders">
-        <component view="PdmView" name="ordersGrid" select="workorders"/>
-      </operation>
       <!-- one work order per alert: the button stays off until another alert is selected -->
       <operation name="action" value="#PdmView">
         <component name="btnDispatch" action="disable"/>
@@ -275,7 +271,16 @@
       <operation name="callMethod" value="#PdmView#lblDispatchResult">
         <method name="setValue"><param type="string">Work order WO-{$alert#@id} dispatched.</param></method>
       </operation>
+      <operation name="call" value="refreshOrders"/>
+    </step>
+
+    <!-- save, drop the cached copy and bind the saved document again, so the grid shows the change -->
+    <step id="refreshOrders">
       <operation name="save" value="home://workorders.xml"/>
+      <operation name="close" value="home://workorders.xml">
+        <mode>document_cache</mode>
+      </operation>
+      <operation name="call" value="loadOrders"/>
     </step>
 
     <!-- ======================== work orders: technician updates -->
@@ -313,7 +318,7 @@
     </step>
 
     <step id="saveOrders">
-      <operation name="save" value="home://workorders.xml"/>
+      <operation name="call" value="refreshOrders"/>
       <operation name="callMethod" value="#PdmView#lblOrder">
         <method name="setValue"><param type="string">Saved.</param></method>
       </operation>
