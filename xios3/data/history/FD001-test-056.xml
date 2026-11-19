@@ -62,4 +62,6 @@
   <point age="131.0" health="44.6" rul="18.3" status="Critical" />
   <point age="134.0" health="40.2" rul="15.3" status="Critical" />
   <point age="136.0" health="39.0" rul="14.1" status="Critical" />
+  <alert id="17" asset="FD001-test-056" assetName="Engine 056 (FD001 test)" raised="2020-01-06 04:00:00" level="Critical" priority="high" issue="Physical fan speed drifting away from its healthy level, 3.3 standard deviations away; health 49/100; estimated RUL 25 cycle" action="Schedule a gas-path inspection of the engine core" />
+  <alert id="16" asset="FD001-test-056" assetName="Engine 056 (FD001 test)" raised="2020-01-04 18:00:00" level="Warning" priority="medium" issue="Physical fan speed drifting away from its healthy level, 2.1 standard deviations away; health 68/100; estimated RUL 60 cycle" action="Schedule a gas-path inspection of the engine core" />
 </history>

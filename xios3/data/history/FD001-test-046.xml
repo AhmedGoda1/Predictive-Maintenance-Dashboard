@@ -62,4 +62,5 @@
   <point age="141.0" health="47.1" rul="48.9" status="Warning" />
   <point age="144.0" health="46.0" rul="52.5" status="Warning" />
   <point age="146.0" health="42.6" rul="44.7" status="Warning" />
+  <alert id="15" asset="FD001-test-046" assetName="Engine 046 (FD001 test)" raised="2020-01-05 15:00:00" level="Warning" priority="medium" issue="Physical core speed drifting away from its healthy level, 2.7 standard deviations away; health 68/100; estimated RUL 70 cycle" action="Schedule a gas-path inspection of the engine core" />
 </history>

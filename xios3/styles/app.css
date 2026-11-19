@@ -1,0 +1,10 @@
+/* app.css - narrow-screen rules for PdmView. ASCII only, no colours.
+   After sign-in the login application opens the first declared view whatever the screen size, so this one
+   view adapts: on a phone the process shows one card at a time (list, or detail with Back), and these rules
+   let the visible card fill the width. The runtime lays a columns panel out in fixed grid columns, so on a
+   phone it becomes one column. Same rule as the CloudBackend plugin's design-kit app.css (measured there
+   2026-11-05 at 375 px). */
+@media (max-width:600px){
+  .pdm-main{grid-template-columns:minmax(0,1fr)!important}
+  .pdm-list,.pdm-detail{width:auto!important;flex:1 1 auto!important;min-width:0!important}
+}

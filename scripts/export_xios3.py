@@ -7,7 +7,7 @@ documents that are uploaded to CloudBackend together with the app:
                                       dashboard's fleet overview)
     xios3/data/alerts.xml             every alert, newest first, with the asset name and work-order priority
     xios3/data/history/<asset>.xml    health index and RUL over the asset's life, thinned to at most
-                                      --points points so the chart stays light
+                                      --points points so the chart stays light, plus the asset's alerts
 
 Usage:
     python scripts/export_xios3.py                 # builds maintenance.db first if it is missing
@@ -114,12 +114,8 @@ def fleet_xml(rows: list, exported: str) -> ET.Element:
 def alerts_xml(assets: pd.DataFrame, alerts: pd.DataFrame, exported: str) -> ET.Element:
     root = ET.Element("alerts", exported=exported)
     for _, a in alerts.iterrows():
-        ET.SubElement(root, "alert", {
-            "id": str(int(a["alert_id"])), "asset": a["asset_id"],
-            "assetName": assets.loc[a["asset_id"], "name"] if a["asset_id"] in assets.index else a["asset_id"],
-            "raised": str(a["ts"])[:19], "level": a["status_level"],
-            "priority": work_orders.PRIORITIES.get(a["status_level"], "medium"),
-            "issue": a["detected_issue"], "action": a["suggested_action"]})
+        name = assets.loc[a["asset_id"], "name"] if a["asset_id"] in assets.index else a["asset_id"]
+        ET.SubElement(root, "alert", _alert_attrs(a, name))
     return root
 
 
@@ -131,7 +127,15 @@ def thin(h: pd.DataFrame, points: int) -> pd.DataFrame:
     return h.iloc[idx]
 
 
-def history_xml(asset_id: str, type_id: str, h: pd.DataFrame, points: int) -> ET.Element:
+def _alert_attrs(a, asset_name: str) -> dict:
+    return {"id": str(int(a["alert_id"])), "asset": a["asset_id"], "assetName": asset_name,
+            "raised": str(a["ts"])[:19], "level": a["status_level"],
+            "priority": work_orders.PRIORITIES.get(a["status_level"], "medium"),
+            "issue": a["detected_issue"], "action": a["suggested_action"]}
+
+
+def history_xml(asset_id: str, type_id: str, h: pd.DataFrame, points: int, alerts: pd.DataFrame = None,
+                asset_name: str = "") -> ET.Element:
     unit = _display(None, type_id)[1]
     root = ET.Element("history", asset=asset_id, unit=unit)
     # What the XIOS3 <chart> component plots (its docs only say the root carries a <serie> naming what to plot,
@@ -142,6 +146,9 @@ def history_xml(asset_id: str, type_id: str, h: pd.DataFrame, points: int) -> ET
         ET.SubElement(root, "point", {
             "age": _num(_display(r["age"], type_id)[0]), "health": _num(r["health_score"]),
             "rul": _num(_display(r["rul_pred"], type_id)[0]), "status": r["status"]})
+    # the asset's own alerts, newest first: the app's per-asset alert grid binds to these
+    for _, a in (alerts if alerts is not None else pd.DataFrame()).iterrows():
+        ET.SubElement(root, "alert", _alert_attrs(a, asset_name))
     return root
 
 
@@ -165,9 +172,10 @@ def export(out_dir: Path = DEFAULT_OUT, points: int = 60, db_path=None) -> dict:
     _write(fleet_xml(rows, exported), out_dir / "fleet.xml")
     _write(alerts_xml(assets, alerts, exported), out_dir / "alerts.xml")
     for asset_id, h in health.groupby("asset_id"):
-        _write(history_xml(asset_id, assets.loc[asset_id, "type_id"], h, points),
+        _write(history_xml(asset_id, assets.loc[asset_id, "type_id"], h, points,
+                           alerts[alerts["asset_id"] == asset_id], assets.loc[asset_id, "name"]),
                out_dir / "history" / f"{asset_id}.xml")
-    seed = out_dir / "workorders.xml"            # empty starting document; the app copies it to the user's Documents
+    seed = out_dir / "workorders.xml"            # empty starting document; the app appends work orders to it
     if not seed.exists():
         _write(ET.Element("workorders"), seed)
     return {"assets": len(rows), "alerts": len(alerts), "out": str(out_dir)}

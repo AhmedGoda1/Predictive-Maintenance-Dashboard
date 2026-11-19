@@ -1,0 +1,13 @@
+{
+  "appId": "com.joni.pdmtechnician",
+  "appName": "PdM Technician",
+  "webDir": "www",
+  "server": {
+    "url": "https://jodu-joduowner-pdmtechnician.cloudbackend.cloud/",
+    "cleartext": false,
+    "allowNavigation": ["*.cloudbackend.cloud", "*.cloudbackend.com"]
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

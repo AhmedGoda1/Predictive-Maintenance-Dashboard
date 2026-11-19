@@ -62,4 +62,6 @@
   <point age="142.0" health="26.8" rul="22.0" status="Critical" />
   <point age="145.0" health="23.8" rul="17.2" status="Critical" />
   <point age="147.0" health="22.5" rul="14.7" status="Critical" />
+  <alert id="21" asset="FD001-test-066" assetName="Engine 066 (FD001 test)" raised="2020-01-06 03:00:00" level="Critical" priority="high" issue="Physical core speed drifting away from its healthy level, 8.5 standard deviations away; health 39/100; estimated RUL 27 cycle" action="Schedule a gas-path inspection of the engine core" />
+  <alert id="20" asset="FD001-test-066" assetName="Engine 066 (FD001 test)" raised="2020-01-04 20:00:00" level="Warning" priority="medium" issue="Physical core speed drifting away from its healthy level, 3.6 standard deviations away; health 69/100; estimated RUL 68 cycle" action="Schedule a gas-path inspection of the engine core" />
 </history>
