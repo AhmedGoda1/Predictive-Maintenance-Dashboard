@@ -236,7 +236,10 @@
                      issue="{$alert#@issue}" note="{#PdmView#woNote}"/>
         </store>
       </operation>
-      <operation name="save" value="host://data/workorders.xml"/>
+      <!-- show the new order right away -->
+      <operation name="bind" value="$orders">
+        <component view="PdmView" name="ordersGrid" select="workorders"/>
+      </operation>
       <!-- one work order per alert: the button stays off until another alert is selected -->
       <operation name="action" value="#PdmView">
         <component name="btnDispatch" action="disable"/>
@@ -244,6 +247,7 @@
       <operation name="callMethod" value="#PdmView#lblDispatchResult">
         <method name="setValue"><param type="string">Work order WO-{$alert#@id} dispatched.</param></method>
       </operation>
+      <operation name="save" value="host://data/workorders.xml"/>
     </step>
 
     <!-- ======================== work orders: technician updates -->
