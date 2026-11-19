@@ -6,7 +6,7 @@
     host://data/fleet.xml            fleet in priority order      (written by scripts/export_xios3.py)
     host://data/alerts.xml           all alerts, newest first     (written by scripts/export_xios3.py)
     host://data/history/<id>.xml     health history per asset     (written by scripts/export_xios3.py)
-    home://Documents/workorders.xml  work orders, created and updated by this app; copied from
+    host://data/workorders.xml  work orders, created and updated by this app; copied from
                                      host://data/workorders.xml the first time the app opens
 -->
 <application name="PdmTechnician" icon="icon://rocket" instances="0"
@@ -142,10 +142,10 @@
       <alias name="alerts" value="host://data/alerts.xml" model="data"/>
 
       <operation name="bind" value="$fleet">
-        <component view="PdmView" name="fleetGrid" select="asset"/>
+        <component view="PdmView" name="fleetGrid" select="fleet"/>
       </operation>
       <operation name="bind" value="$alerts">
-        <component view="PdmView" name="alertsGrid" select="alert"/>
+        <component view="PdmView" name="alertsGrid" select="alerts"/>
       </operation>
 
       <operation name="callMethod" value="#PdmView#lblSummary">
@@ -154,24 +154,13 @@
         </method>
       </operation>
 
-      <!-- The work-order document lives in the signed-in user's Documents; create it on first run -->
-      <operation name="decision" value="home://Documents/workorders.xml">
-        <when exists="true">
-          <operation name="call" value="loadOrders"/>
-        </when>
-        <when exists="false">
-          <operation name="database" value="host://data/workorders.xml">
-            <copy to="home://Documents/" silent="true"/>
-          </operation>
-          <operation name="call" value="loadOrders"/>
-        </when>
-      </operation>
+      <operation name="call" value="loadOrders"/>
     </step>
 
     <step id="loadOrders">
-      <alias name="orders" value="home://Documents/workorders.xml" model="data"/>
+      <alias name="orders" value="host://data/workorders.xml" model="data"/>
       <operation name="bind" value="$orders">
-        <component view="PdmView" name="ordersGrid" select="workorder"/>
+        <component view="PdmView" name="ordersGrid" select="workorders"/>
       </operation>
     </step>
 
@@ -206,8 +195,8 @@
       <operation name="bind" value="host://data/history/{!#@id}.xml">
         <component view="PdmView" name="healthChart"/>
       </operation>
-      <operation name="bind" value="$alerts">
-        <component view="PdmView" name="assetAlertsGrid" select="alert[@asset='{!#@id}']"/>
+      <operation name="bind" value="host://data/history/{!#@id}.xml">
+        <component view="PdmView" name="assetAlertsGrid" select="history"/>
       </operation>
     </step>
 
@@ -255,7 +244,7 @@
                          note="{#PdmView#woNote}"/>
             </store>
           </operation>
-          <operation name="save" value="home://Documents/workorders.xml"/>
+          <operation name="save" value="host://data/workorders.xml"/>
           <operation name="callMethod" value="#PdmView#lblDispatchResult">
             <method name="setValue"><param type="string">Work order WO-{$alert#@id} dispatched.</param></method>
           </operation>
@@ -297,7 +286,7 @@
     </step>
 
     <step id="saveOrders">
-      <operation name="save" value="home://Documents/workorders.xml"/>
+      <operation name="save" value="host://data/workorders.xml"/>
       <operation name="callMethod" value="#PdmView#lblOrder">
         <method name="setValue"><param type="string">Saved.</param></method>
       </operation>

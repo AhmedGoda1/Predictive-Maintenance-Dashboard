@@ -62,4 +62,9 @@
   <point age="34.6" health="23.2" rul="4.2" status="Critical" />
   <point age="35.1" health="25.9" rul="4.2" status="Critical" />
   <point age="35.5" health="0.0" rul="0.0" status="Failed" />
+  <alert id="5" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 18:00:30" level="Failed" priority="urgent" issue="Brushed DC motor stopped working" action="Take the asset out of service and inspect it before restarting" />
+  <alert id="4" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:54:47" level="Critical" priority="high" issue="High-frequency vibration rising (bearing wear or brush arcing), 5.0x the healthy level; health 29/100" action="Check bearings and brush contact, look for arcing marks" />
+  <alert id="3" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:52:39" level="Warning" priority="medium" issue="High-frequency vibration rising (bearing wear or brush arcing), 1.9x the healthy level; health 64/100" action="Check bearings and brush contact, look for arcing marks" />
+  <alert id="2" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:40:32" level="Critical" priority="high" issue="High-frequency vibration rising (bearing wear or brush arcing), 6.3x the healthy level; health 31/100" action="Check bearings and brush contact, look for arcing marks" />
+  <alert id="1" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:35:10" level="Warning" priority="medium" issue="Elevated 1x vibration (imbalance, misalignment or commutator wear), 1.8x the healthy level; health 69/100" action="Inspect shaft balance, alignment and the commutator surface" />
 </history>

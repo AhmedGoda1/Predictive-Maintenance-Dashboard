@@ -62,4 +62,7 @@
   <point age="122.0" health="52.2" rul="29.1" status="Warning" />
   <point age="124.0" health="47.4" rul="28.5" status="Warning" />
   <point age="126.0" health="44.4" rul="23.1" status="Critical" />
+  <alert id="12" asset="FD001-test-036" assetName="Engine 036 (FD001 test)" raised="2020-01-06 06:00:00" level="Critical" priority="high" issue="Ratio of fuel flow to Ps30 drifting away from its healthy level, 4.9 standard deviations away; health 44/100; estimated RUL 23 cycle" action="Schedule a gas-path inspection of the engine core" />
+  <alert id="11" asset="FD001-test-036" assetName="Engine 036 (FD001 test)" raised="2020-01-05 22:00:00" level="Critical" priority="high" issue="Ratio of fuel flow to Ps30 drifting away from its healthy level, 3.2 standard deviations away; health 53/100; estimated RUL 24 cycle" action="Schedule a gas-path inspection of the engine core" />
+  <alert id="10" asset="FD001-test-036" assetName="Engine 036 (FD001 test)" raised="2020-01-04 13:00:00" level="Warning" priority="medium" issue="Bypass ratio drifting away from its healthy level, 1.9 standard deviations away; health 69/100; estimated RUL 63 cycle" action="Schedule a gas-path inspection of the engine core" />
 </history>

@@ -35,6 +35,8 @@ def test_export_writes_the_documents_the_xios3_app_binds_to(built_db, tmp_path, 
         assert 2 <= len(points) <= 40
         ages = [float(p.get("age")) for p in points]
         assert ages == sorted(ages)
+        own = ET.parse(tmp_path / "history" / f"{a.get('id')}.xml").getroot().findall("alert")
+        assert len(own) == int(a.get("openAlerts")) and all(x.get("asset") == a.get("id") for x in own)
 
 
 def test_rul_text_marks_the_model_cap():

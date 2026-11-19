@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<alerts exported="2026-11-19T15:50:34Z">
+<alerts exported="2026-11-19T16:03:25Z">
   <alert id="5" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 18:00:30" level="Failed" priority="urgent" issue="Brushed DC motor stopped working" action="Take the asset out of service and inspect it before restarting" />
   <alert id="4" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:54:47" level="Critical" priority="high" issue="High-frequency vibration rising (bearing wear or brush arcing), 5.0x the healthy level; health 29/100" action="Check bearings and brush contact, look for arcing marks" />
   <alert id="3" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:52:39" level="Warning" priority="medium" issue="High-frequency vibration rising (bearing wear or brush arcing), 1.9x the healthy level; health 64/100" action="Check bearings and brush contact, look for arcing marks" />

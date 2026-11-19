@@ -17,7 +17,7 @@ data in CloudBackend.
 | `index.xml` | Application manifest: the view and the process (triggers and steps). CloudBackend deployments expect this name. |
 | `index.html` | Boot page for the deployed site. Pressing ▶ in VS Code rewrites it for local use, so upload this version. |
 | `data/fleet.xml`, `data/alerts.xml`, `data/history/*.xml` | Pipeline results, written by `python scripts/export_xios3.py` |
-| `data/workorders.xml` | Empty starting document. On first start the app copies it to the user's `home://Documents/workorders.xml`, where work orders are saved. |
+| `data/workorders.xml` | Work orders. Starts empty; the app appends to it and saves it in the project's CloudBackend storage (a deployment has no `home://` drive). Don't re-upload it once it holds real orders. |
 
 ## Refresh the data
 
@@ -25,7 +25,7 @@ data in CloudBackend.
 python scripts/export_xios3.py      # from the repository root; builds maintenance.db first if it is missing
 ```
 
-Then upload the `data` folder again (see below). Work orders are not touched, since they live in the user's Documents.
+Then upload the `data` folder again (see below), except `workorders.xml` once it holds real orders.
 
 ## Upload and deploy with the CloudBackend VS Code extension
 
@@ -43,4 +43,4 @@ adjustment on the first deployment:
 - the data format of the health chart (`<serie>` / `<axis>` at the top of each history file);
 - `host://data/...` as the path to files uploaded with the app;
 - aliases set in one step (`$fleet`, `$alerts`, `$orders`, `$alert`) being visible in later steps;
-- the first-run copy of `workorders.xml` into `home://Documents/`.
+- saving `host://data/workorders.xml` from a deployed app.

@@ -62,4 +62,7 @@
   <point age="189.0" health="21.4" rul="15.1" status="Critical" />
   <point age="193.0" health="19.2" rul="13.9" status="Critical" />
   <point age="196.0" health="17.6" rul="9.9" status="Critical" />
+  <alert id="9" asset="FD001-test-031" assetName="Engine 031 (FD001 test)" raised="2020-01-07 20:00:00" level="Critical" priority="high" issue="Physical fan speed drifting away from its healthy level, 4.5 standard deviations away; health 37/100; estimated RUL 34 cycle" action="Schedule a gas-path inspection of the engine core" />
+  <alert id="8" asset="FD001-test-031" assetName="Engine 031 (FD001 test)" raised="2020-01-06 00:00:00" level="Warning" priority="medium" issue="Total temperature at LPT outlet drifting away from its healthy level, 3.1 standard deviations away; health 65/100; estimated RUL 82 cycle" action="Schedule a gas-path inspection of the engine core" />
+  <alert id="7" asset="FD001-test-031" assetName="Engine 031 (FD001 test)" raised="2020-01-05 08:00:00" level="Warning" priority="medium" issue="Total temperature at LPT outlet drifting away from its healthy level, 2.0 standard deviations away; health 69/100; estimated RUL 85 cycle" action="Schedule a gas-path inspection of the engine core" />
 </history>

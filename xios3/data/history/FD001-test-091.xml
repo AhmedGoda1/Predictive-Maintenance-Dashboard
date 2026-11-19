@@ -62,4 +62,5 @@
   <point age="226.0" health="43.8" rul="43.9" status="Warning" />
   <point age="230.0" health="43.4" rul="34.3" status="Warning" />
   <point age="234.0" health="43.0" rul="34.2" status="Warning" />
+  <alert id="26" asset="FD001-test-091" assetName="Engine 091 (FD001 test)" raised="2020-01-08 01:00:00" level="Warning" priority="medium" issue="Physical fan speed drifting away from its healthy level, 3.3 standard deviations away; health 67/100; estimated RUL 78 cycle" action="Schedule a gas-path inspection of the engine core" />
 </history>
