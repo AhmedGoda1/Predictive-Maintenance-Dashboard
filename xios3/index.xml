@@ -251,7 +251,7 @@
               <workorder id="WO-{$alert#@id}" alert="{$alert#@id}" asset="{$alert#@asset}"
                          assetName="{$alert#@assetName}" priority="{$alert#@priority}" level="{$alert#@level}"
                          status="dispatched" assignee="{#PdmView#woAssignee}" due="{#PdmView#woDue}"
-                         created="{format('yyyy-MM-dd hh:mm')}" issue="{$alert#@issue}"
+                         issue="{$alert#@issue}"
                          note="{#PdmView#woNote}"/>
             </store>
           </operation>
