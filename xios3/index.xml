@@ -6,8 +6,9 @@
     host://data/fleet.xml            fleet in priority order      (written by scripts/export_xios3.py)
     host://data/alerts.xml           all alerts, newest first     (written by scripts/export_xios3.py)
     host://data/history/<id>.xml     health history per asset     (written by scripts/export_xios3.py)
-    host://data/workorders.xml  work orders, created and updated by this app; copied from
-                                     host://data/workorders.xml the first time the app opens
+    home://Documents/workorders.xml  work orders, created and updated by this app; copied from
+                                     host://data/workorders.xml after the user signs in the first time
+                                     (host:// is read-only once deployed, and home:// needs a signed-in user)
 -->
 <application name="PdmTechnician" icon="icon://rocket" instances="0"
              xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -30,6 +31,14 @@
     <panel name="MainPanel" type="rows" padding="8" gap="8">
 
       <label name="lblSummary" size="14" bold="true" text="Loading fleet…"/>
+
+      <!-- Sign-in with a CloudBackend account: needed to save work orders -->
+      <panel name="loginPanel" type="columns" gap="8">
+        <input  name="loginUser" placeholder="CloudBackend username" width="180"/>
+        <input  name="loginPass" type="password" placeholder="Password" width="160"/>
+        <button name="btnLogin" text="Sign in" default="true"/>
+        <label  name="lblLogin" text="Sign in to dispatch and update work orders."/>
+      </panel>
 
       <tabstrip name="tabs" position="top" tabs="true">
 
@@ -132,6 +141,7 @@
     <trigger view="PdmView" component="alertsGrid"  event="Select" step="alertSelected"/>
     <trigger view="PdmView" component="btnDispatch" event="Select" step="dispatch"/>
     <trigger view="PdmView" component="ordersGrid"  event="Select" step="orderSelected"/>
+    <trigger view="PdmView" component="btnLogin"    event="Select" step="login"/>
     <trigger view="PdmView" component="btnStart"    event="Select" step="orderStart"/>
     <trigger view="PdmView" component="btnComplete" event="Select" step="orderComplete"/>
     <trigger view="PdmView" component="btnReject"   event="Select" step="orderReject"/>
@@ -154,11 +164,46 @@
         </method>
       </operation>
 
-      <operation name="call" value="loadOrders"/>
+      <!-- work orders need a signed-in user; until then dispatch stays off -->
+      <operation name="action" value="#PdmView">
+        <component name="btnDispatch" action="disable"/>
+      </operation>
+    </step>
+
+    <!-- ======================== sign-in -->
+    <step id="login">
+      <operation name="login" value="cbe">
+        <username>{#PdmView#loginUser}</username>
+        <password>{#PdmView#loginPass}</password>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblLogin">
+        <method name="setValue"><param type="string">Signed in as {#PdmView#loginUser}.</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#loginPass">
+        <method name="setValue"><param type="string"></param></method>
+      </operation>
+      <operation name="action" value="#PdmView">
+        <component name="loginUser" action="hide"/>
+        <component name="loginPass" action="hide"/>
+        <component name="btnLogin"  action="hide"/>
+      </operation>
+
+      <!-- The work-order document lives in the user's Documents; create it on first sign-in -->
+      <operation name="decision" value="home://Documents/workorders.xml">
+        <when exists="true">
+          <operation name="call" value="loadOrders"/>
+        </when>
+        <when exists="false">
+          <operation name="database" value="host://data/workorders.xml">
+            <copy to="home://Documents/" silent="true"/>
+          </operation>
+          <operation name="call" value="loadOrders"/>
+        </when>
+      </operation>
     </step>
 
     <step id="loadOrders">
-      <alias name="orders" value="host://data/workorders.xml" model="data"/>
+      <alias name="orders" value="home://Documents/workorders.xml" model="data"/>
       <operation name="bind" value="$orders">
         <component view="PdmView" name="ordersGrid" select="workorders"/>
       </operation>
@@ -247,7 +292,7 @@
       <operation name="callMethod" value="#PdmView#lblDispatchResult">
         <method name="setValue"><param type="string">Work order WO-{$alert#@id} dispatched.</param></method>
       </operation>
-      <operation name="save" value="host://data/workorders.xml"/>
+      <operation name="save" value="home://Documents/workorders.xml"/>
     </step>
 
     <!-- ======================== work orders: technician updates -->
@@ -285,7 +330,7 @@
     </step>
 
     <step id="saveOrders">
-      <operation name="save" value="host://data/workorders.xml"/>
+      <operation name="save" value="home://Documents/workorders.xml"/>
       <operation name="callMethod" value="#PdmView#lblOrder">
         <method name="setValue"><param type="string">Saved.</param></method>
       </operation>
