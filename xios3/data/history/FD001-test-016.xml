@@ -1,0 +1,65 @@
+<?xml version='1.0' encoding='utf-8'?>
+<history asset="FD001-test-016" unit="cycles">
+  <serie name="Health index" select="point" value="@health" label="@age" />
+  <axis x="Age (cycles)" y="Health index (0-100)" />
+  <point age="1.0" health="80.9" rul="125.0" status="Healthy" />
+  <point age="3.0" health="86.3" rul="125.0" status="Healthy" />
+  <point age="5.0" health="92.5" rul="125.0" status="Healthy" />
+  <point age="7.0" health="91.0" rul="125.0" status="Healthy" />
+  <point age="9.0" health="87.1" rul="125.0" status="Healthy" />
+  <point age="10.0" health="91.7" rul="125.0" status="Healthy" />
+  <point age="12.0" health="91.6" rul="125.0" status="Healthy" />
+  <point age="14.0" health="87.7" rul="124.6" status="Healthy" />
+  <point age="16.0" health="93.6" rul="125.0" status="Healthy" />
+  <point age="18.0" health="88.4" rul="125.0" status="Healthy" />
+  <point age="20.0" health="84.2" rul="125.0" status="Healthy" />
+  <point age="22.0" health="87.0" rul="125.0" status="Healthy" />
+  <point age="24.0" health="86.6" rul="125.0" status="Healthy" />
+  <point age="26.0" health="88.4" rul="125.0" status="Healthy" />
+  <point age="28.0" health="87.8" rul="125.0" status="Healthy" />
+  <point age="29.0" health="90.8" rul="125.0" status="Healthy" />
+  <point age="31.0" health="89.7" rul="125.0" status="Healthy" />
+  <point age="33.0" health="89.3" rul="124.2" status="Healthy" />
+  <point age="35.0" health="83.5" rul="123.1" status="Healthy" />
+  <point age="37.0" health="85.9" rul="123.1" status="Healthy" />
+  <point age="39.0" health="84.8" rul="125.0" status="Healthy" />
+  <point age="41.0" health="85.7" rul="125.0" status="Healthy" />
+  <point age="43.0" health="84.4" rul="124.1" status="Healthy" />
+  <point age="45.0" health="85.6" rul="122.9" status="Healthy" />
+  <point age="47.0" health="83.7" rul="121.6" status="Healthy" />
+  <point age="48.0" health="84.1" rul="121.6" status="Healthy" />
+  <point age="50.0" health="80.5" rul="121.1" status="Healthy" />
+  <point age="52.0" health="85.7" rul="121.7" status="Healthy" />
+  <point age="54.0" health="87.2" rul="125.0" status="Healthy" />
+  <point age="56.0" health="86.3" rul="124.7" status="Healthy" />
+  <point age="58.0" health="88.7" rul="124.0" status="Healthy" />
+  <point age="60.0" health="88.2" rul="124.7" status="Healthy" />
+  <point age="62.0" health="86.7" rul="124.5" status="Healthy" />
+  <point age="64.0" health="87.7" rul="123.5" status="Healthy" />
+  <point age="66.0" health="86.2" rul="124.0" status="Healthy" />
+  <point age="67.0" health="88.0" rul="123.7" status="Healthy" />
+  <point age="69.0" health="85.7" rul="122.9" status="Healthy" />
+  <point age="71.0" health="85.3" rul="115.9" status="Healthy" />
+  <point age="73.0" health="84.9" rul="121.6" status="Healthy" />
+  <point age="75.0" health="79.9" rul="116.4" status="Healthy" />
+  <point age="77.0" health="81.4" rul="116.3" status="Healthy" />
+  <point age="79.0" health="81.3" rul="120.9" status="Healthy" />
+  <point age="81.0" health="82.2" rul="119.4" status="Healthy" />
+  <point age="83.0" health="83.1" rul="120.5" status="Healthy" />
+  <point age="85.0" health="81.3" rul="117.9" status="Healthy" />
+  <point age="86.0" health="80.7" rul="120.6" status="Healthy" />
+  <point age="88.0" health="82.1" rul="117.5" status="Healthy" />
+  <point age="90.0" health="79.6" rul="117.6" status="Healthy" />
+  <point age="92.0" health="80.2" rul="112.7" status="Healthy" />
+  <point age="94.0" health="77.8" rul="105.6" status="Healthy" />
+  <point age="96.0" health="76.9" rul="109.2" status="Healthy" />
+  <point age="98.0" health="77.0" rul="104.3" status="Healthy" />
+  <point age="100.0" health="72.6" rul="106.0" status="Healthy" />
+  <point age="102.0" health="73.6" rul="95.3" status="Healthy" />
+  <point age="104.0" health="75.7" rul="100.3" status="Healthy" />
+  <point age="105.0" health="76.2" rul="104.9" status="Healthy" />
+  <point age="107.0" health="77.1" rul="106.0" status="Healthy" />
+  <point age="109.0" health="76.7" rul="97.9" status="Healthy" />
+  <point age="111.0" health="75.6" rul="91.5" status="Healthy" />
+  <point age="113.0" health="68.7" rul="86.4" status="Healthy" />
+</history>

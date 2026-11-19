@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maintenance technician app for the predictive-maintenance pipeline, built with built-in XIOS3 components only.
+
+  Data (all XML, hosted in CloudBackend):
+    host://data/fleet.xml            fleet in priority order      (written by scripts/export_xios3.py)
+    host://data/alerts.xml           all alerts, newest first     (written by scripts/export_xios3.py)
+    host://data/history/<id>.xml     health history per asset     (written by scripts/export_xios3.py)
+    home://Documents/workorders.xml  work orders, created and updated by this app; copied from
+                                     host://data/workorders.xml the first time the app opens
+-->
+<application name="PdmTechnician" icon="icon://rocket" instances="0"
+             xmlns:xlink="http://www.w3.org/1999/xlink"
+             xmlns:db="https://cloudbackend.com/db.xsd">
+
+  <share>false</share>
+
+  <settings>
+    <home>home://</home>
+    <path>home://Applications</path>
+  </settings>
+
+  <about loader="false" version="0.1" revised="2026-11-19" created="2026-11-19"
+         author="Joni" publisher="Joni">
+    <description>Predictive maintenance: fleet priority, asset health, alerts and work orders.</description>
+  </about>
+
+  <!-- ============================================================ UI -->
+  <view name="PdmView" title="Predictive Maintenance" icon="icon://rocket" width="1200" height="760">
+    <panel name="MainPanel" type="rows" padding="8" gap="8">
+
+      <label name="lblSummary" size="14" bold="true" text="Loading fleet…"/>
+
+      <tabstrip name="tabs" position="top" tabs="true">
+
+        <!-- ======================== Fleet: priority grid + selected asset -->
+        <panel name="tabFleet" type="columns" gap="8" selected="true" title="Fleet">
+
+          <grid name="fleetGrid" width="560" height="auto" selection="row" datachange="false" deselect="false">
+            <row match="asset" height="28">
+              <column width="40"  name="#"         match="@rank"       display="."/>
+              <column width="190" name="Asset"     match="@name"       display="."/>
+              <column width="70"  name="Status"    match="@status"     display="."/>
+              <column width="60"  name="Health"    match="@health"     display="."/>
+              <column width="110" name="Est. life" match="@rulText"    display="."/>
+              <column width="60"  name="Alerts"    match="@openAlerts" display="."/>
+            </row>
+          </grid>
+
+          <panel name="assetPanel" type="rows" gap="6" padding="8" title="Selected asset">
+            <label name="lblAssetName"   size="16" bold="true" text="Select an asset in the list"/>
+            <label name="lblAssetType"   text=""/>
+            <label name="lblAssetStatus" text=""/>
+            <label name="lblAssetHealth" text=""/>
+            <label name="lblAssetRul"    text=""/>
+            <label name="lblAssetDriver" text=""/>
+            <label name="lblAssetLatest" text=""/>
+            <label name="lblAssetAction" text=""/>
+
+            <chart name="healthChart" charttype="linechart" style="height: 220px;"/>
+
+            <label text="Alerts for this asset" bold="true"/>
+            <grid name="assetAlertsGrid" height="150" selection="row" datachange="false">
+              <row match="alert" height="26">
+                <column width="130" name="Raised" match="@raised" display="."/>
+                <column width="70"  name="Level"  match="@level"  display="."/>
+                <column width="330" name="Issue"  match="@issue"  display="."/>
+              </row>
+            </grid>
+          </panel>
+        </panel>
+
+        <!-- ======================== Alerts: every alert + dispatch form -->
+        <panel name="tabAlerts" type="columns" gap="8" title="Alerts">
+
+          <grid name="alertsGrid" width="640" height="auto" selection="row" datachange="false">
+            <row match="alert" height="28">
+              <column width="130" name="Raised"   match="@raised"    display="."/>
+              <column width="170" name="Asset"    match="@assetName" display="."/>
+              <column width="70"  name="Level"    match="@level"     display="."/>
+              <column width="260" name="Issue"    match="@issue"     display="."/>
+            </row>
+          </grid>
+
+          <panel name="dispatchPanel" type="rows" gap="6" padding="8" title="Dispatch a work order">
+            <label name="lblAlertAsset"  bold="true" text="Select an alert in the list"/>
+            <label name="lblAlertIssue"  text=""/>
+            <label name="lblAlertAction" text=""/>
+            <label name="lblAlertPriority" text=""/>
+            <input    name="woAssignee" label="Technician" placeholder="Who does the job"/>
+            <date     name="woDue"/>
+            <textarea name="woNote" height="70" placeholder="Instructions for the technician"/>
+            <button   name="btnDispatch" text="Dispatch work order" type="do" enabled="false"/>
+            <label    name="lblDispatchResult" text=""/>
+          </panel>
+        </panel>
+
+        <!-- ======================== Work orders: technician view -->
+        <panel name="tabOrders" type="rows" gap="8" title="Work orders">
+
+          <grid name="ordersGrid" height="auto" selection="row" datachange="false">
+            <row match="workorder" height="28">
+              <column width="90"  name="Order"      match="@id"        display="."/>
+              <column width="170" name="Asset"      match="@assetName" display="."/>
+              <column width="70"  name="Priority"   match="@priority"  display="."/>
+              <column width="90"  name="Status"     match="@status"    display="."/>
+              <column width="110" name="Technician" match="@assignee"  display="."/>
+              <column width="100" name="Due"        match="@due"       display="."/>
+              <column width="260" name="Issue"      match="@issue"     display="."/>
+            </row>
+          </grid>
+
+          <panel name="orderActions" type="columns" gap="8">
+            <label  name="lblOrder" text="Select a work order"/>
+            <button name="btnStart"    text="Start"    enabled="false"/>
+            <button name="btnComplete" text="Complete" enabled="false"/>
+            <button name="btnReject"   text="Reject"   enabled="false"/>
+          </panel>
+        </panel>
+
+      </tabstrip>
+    </panel>
+  </view>
+
+  <!-- ============================================================ Logic -->
+  <process name="PdmProcess" description="Predictive maintenance - Process">
+
+    <!-- Until the view signals it is loaded, bindings cannot be done -->
+    <trigger view="PdmView" event="Opened" step="init"/>
+
+    <trigger view="PdmView" component="fleetGrid"   event="Select" step="assetSelected"/>
+    <trigger view="PdmView" component="alertsGrid"  event="Select" step="alertSelected"/>
+    <trigger view="PdmView" component="btnDispatch" event="Select" step="dispatch"/>
+    <trigger view="PdmView" component="ordersGrid"  event="Select" step="orderSelected"/>
+    <trigger view="PdmView" component="btnStart"    event="Select" step="orderStart"/>
+    <trigger view="PdmView" component="btnComplete" event="Select" step="orderComplete"/>
+    <trigger view="PdmView" component="btnReject"   event="Select" step="orderReject"/>
+
+    <!-- ======================== start-up -->
+    <step id="init">
+      <alias name="fleet"  value="host://data/fleet.xml"  model="data"/>
+      <alias name="alerts" value="host://data/alerts.xml" model="data"/>
+
+      <operation name="bind" value="$fleet">
+        <component view="PdmView" name="fleetGrid" select="asset"/>
+      </operation>
+      <operation name="bind" value="$alerts">
+        <component view="PdmView" name="alertsGrid" select="alert"/>
+      </operation>
+
+      <operation name="callMethod" value="#PdmView#lblSummary">
+        <method name="setValue">
+          <param type="string">{$fleet#/fleet/@assets} assets · {$fleet#/fleet/summary/count[@status='Failed']/@n} failed · {$fleet#/fleet/summary/count[@status='Critical']/@n} critical · {$fleet#/fleet/summary/count[@status='Warning']/@n} warning · data from {$fleet#/fleet/@exported}</param>
+        </method>
+      </operation>
+
+      <!-- The work-order document lives in the signed-in user's Documents; create it on first run -->
+      <operation name="decision" value="home://Documents/workorders.xml">
+        <when exists="true">
+          <operation name="call" value="loadOrders"/>
+        </when>
+        <when exists="false">
+          <operation name="database" value="host://data/workorders.xml">
+            <copy to="home://Documents/" silent="true"/>
+          </operation>
+          <operation name="call" value="loadOrders"/>
+        </when>
+      </operation>
+    </step>
+
+    <step id="loadOrders">
+      <alias name="orders" value="home://Documents/workorders.xml" model="data"/>
+      <operation name="bind" value="$orders">
+        <component view="PdmView" name="ordersGrid" select="workorder"/>
+      </operation>
+    </step>
+
+    <!-- ======================== fleet: show the selected asset -->
+    <step id="assetSelected">
+      <alias name="asset" value="!"/>
+      <operation name="callMethod" value="#PdmView#lblAssetName">
+        <method name="setValue"><param type="string">{!#@name}</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAssetType">
+        <method name="setValue"><param type="string">{!#@typeName} · {!#@id}</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAssetStatus">
+        <method name="setValue"><param type="string">Status: {!#@status} (priority #{!#@rank})</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAssetHealth">
+        <method name="setValue"><param type="string">Health index: {!#@health} / 100</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAssetRul">
+        <method name="setValue"><param type="string">Estimated remaining life: {!#@rulText} (80 % interval {!#@rulLow}–{!#@rulHigh} {!#@unit})</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAssetDriver">
+        <method name="setValue"><param type="string">Main driver: {!#@topDriver}</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAssetLatest">
+        <method name="setValue"><param type="string">Latest alert: {!#@latestIssue}</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAssetAction">
+        <method name="setValue"><param type="string">Suggested action: {!#@latestAction}</param></method>
+      </operation>
+
+      <operation name="bind" value="host://data/history/{!#@id}.xml">
+        <component view="PdmView" name="healthChart"/>
+      </operation>
+      <operation name="bind" value="$alerts">
+        <component view="PdmView" name="assetAlertsGrid" select="alert[@asset='{!#@id}']"/>
+      </operation>
+    </step>
+
+    <!-- ======================== alerts: prepare the dispatch form -->
+    <step id="alertSelected">
+      <alias name="alert" value="!"/>
+      <operation name="callMethod" value="#PdmView#lblAlertAsset">
+        <method name="setValue"><param type="string">{!#@assetName} · {!#@level} alert, raised {!#@raised}</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAlertIssue">
+        <method name="setValue"><param type="string">Issue: {!#@issue}</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAlertAction">
+        <method name="setValue"><param type="string">Suggested action: {!#@action}</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblAlertPriority">
+        <method name="setValue"><param type="string">Work-order priority: {!#@priority}</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#woNote">
+        <method name="setValue"><param type="string">{!#@action}</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblDispatchResult">
+        <method name="setValue"><param type="string"></param></method>
+      </operation>
+      <operation name="action" value="#PdmView">
+        <component name="btnDispatch" action="enable"/>
+      </operation>
+    </step>
+
+    <!-- ======================== alerts: create the work order (one per alert) -->
+    <step id="dispatch">
+      <operation name="decision" value="$orders#/workorders/workorder[@alert='{$alert#@id}']">
+        <when exists="true">
+          <operation name="callMethod" value="#PdmView#lblDispatchResult">
+            <method name="setValue"><param type="string">This alert already has work order WO-{$alert#@id}.</param></method>
+          </operation>
+        </when>
+        <when exists="false">
+          <operation name="change" value="$orders">
+            <store select="/workorders" type="append">
+              <workorder id="WO-{$alert#@id}" alert="{$alert#@id}" asset="{$alert#@asset}"
+                         assetName="{$alert#@assetName}" priority="{$alert#@priority}" level="{$alert#@level}"
+                         status="dispatched" assignee="{#PdmView#woAssignee}" due="{#PdmView#woDue}"
+                         created="{format('yyyy-MM-dd hh:mm')}" issue="{$alert#@issue}"
+                         note="{#PdmView#woNote}"/>
+            </store>
+          </operation>
+          <operation name="save" value="home://Documents/workorders.xml"/>
+          <operation name="callMethod" value="#PdmView#lblDispatchResult">
+            <method name="setValue"><param type="string">Work order WO-{$alert#@id} dispatched.</param></method>
+          </operation>
+        </when>
+      </operation>
+    </step>
+
+    <!-- ======================== work orders: technician updates -->
+    <step id="orderSelected">
+      <operation name="callMethod" value="#PdmView#lblOrder">
+        <method name="setValue"><param type="string">{!#@id} · {!#@assetName} · {!#@status}</param></method>
+      </operation>
+      <operation name="action" value="#PdmView">
+        <component name="btnStart"    action="enable"/>
+        <component name="btnComplete" action="enable"/>
+        <component name="btnReject"   action="enable"/>
+      </operation>
+    </step>
+
+    <step id="orderStart">
+      <operation name="change" value="#PdmView#ordersGrid">
+        <store select="@status" type="replaceText">in_progress</store>
+      </operation>
+      <operation name="call" value="saveOrders"/>
+    </step>
+
+    <step id="orderComplete">
+      <operation name="change" value="#PdmView#ordersGrid">
+        <store select="@status" type="replaceText">completed</store>
+      </operation>
+      <operation name="call" value="saveOrders"/>
+    </step>
+
+    <step id="orderReject">
+      <operation name="change" value="#PdmView#ordersGrid">
+        <store select="@status" type="replaceText">rejected</store>
+      </operation>
+      <operation name="call" value="saveOrders"/>
+    </step>
+
+    <step id="saveOrders">
+      <operation name="save" value="home://Documents/workorders.xml"/>
+      <operation name="callMethod" value="#PdmView#lblOrder">
+        <method name="setValue"><param type="string">Saved.</param></method>
+      </operation>
+    </step>
+  </process>
+</application>
