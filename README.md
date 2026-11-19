@@ -77,13 +77,15 @@ a pitch for a prospective customer:
 - **Any number of customers:** save each customer as a profile and switch between them from the *Customer* box.
   Profiles last while the browser tab is open; *Download profiles* / *Load profiles* carry them to another session.
 - **Clean layout:** hides the MQTT and refresh panels, the Streamlit toolbar and the model internals in the tables.
-- **Guided tour (9 steps):** Next / Back drives the app itself, focused on the fleet overview and the work-order loop:
+- **Guided tour (10 steps):** Next / Back drives the app itself, focused on the fleet overview and the work-order loop:
   fleet at a glance, the replay, the priority list, fleet-wide alerts, the asset most at risk, dispatching a work
-  order, the technician's page, the update coming back, and a closing *Next steps* page.
+  order, the technician's page, the update coming back, the mobile technician app on CloudBackend, and a closing
+  *Next steps* page.
 
 **Course presentation:** set *Audience* to *Course presentation* (or add `&audience=course&team=...` to the link) for a
-15-step tour in the order of the course's demonstration: the problem, the users, the requirements and what was built,
-the architecture, the live demo (health index, replay, RUL ranking, alerts, one engine to failure, the work-order loop),
+16-step tour in the order of the course's demonstration: the problem, the users, the requirements and what was built,
+the architecture, the live demo (health index, replay, RUL ranking, alerts, one engine to failure, the work-order loop,
+the mobile app on CloudBackend),
 testing (the automated test suite and the model's results on held-out C-MAPSS engines against two baselines) and
 lessons learned. The profile then holds the project title, subtitle, team members, course, accent colour and the
 lessons learned, and a *Before you present* checklist sits in the sidebar.
@@ -119,6 +121,43 @@ Dispatch a work order on an alert, then click *Start work* or *Complete* in Node
 With accounts in the app's secrets, the dashboard asks for a login. An **admin** sees everything above; a
 **maintenance** user sees only the open work orders and marks them started, completed or rejected (recorded like
 a confirmation from the service). Without accounts there is no login. **Setup: [docs/LOGIN.md](docs/LOGIN.md).**
+
+## Mobile technician app on CloudBackend (XIOS/3)
+
+The technician workflow also runs as a mobile-ready app on the [CloudBackend](https://cloudbackend.com) platform,
+written in XIOS/3 (XML views and processes that CloudBackend hosts, with its own sign-in and per-user storage).
+Presentation mode shows it on its *Mobile app* page.
+
+```
+maintenance.db ──scripts/export_xios3.py──▶ xios3/data/*.xml ──upload──▶ CloudBackend: XIOS/3 app + sign-in
+                                                                                  │ work orders saved per user (home://)
+                                                                                  ▼
+                                                                    browser, or Android app (mobile/, Capacitor)
+```
+
+- **`xios3/`**: fleet in priority order, asset detail with a health chart (SVG drawn by an XSLT, since XIOS/3 has no
+  chart component) and the asset's alerts, every alert with a dispatch form, and a work-order list with Start,
+  Complete, Reject and *Delete completed orders*. On a phone each tab shows its list first and the detail after a tap.
+  Upload and deploy steps are in `xios3/README.md`.
+- **`mobile/`**: a Capacitor 8 Android project whose only screen opens the deployed app, for testing on a phone or an
+  emulator (not a store release). Build steps are in `mobile/README.md`.
+
+What was done on 2026-11-19:
+
+1. Checked the app against the CloudBackend developer documentation and its Claude plugin (component reference,
+   linter, the extension's XML schemas) and fixed what did not follow it: start-up on `Loaded`, the first-run copy of
+   the work-order document, sign-up and password-reset links on the login, a Sign out button, ASCII-only files.
+2. Fixed the two open bugs: the health chart (now an XSLT render) and the work-order grid, which now refreshes
+   without being bound again after every save (repeated binds broke row selection).
+3. Made it work on phones: one adaptive view (the platform's login always opens the first declared view), the
+   CloudBackend design kit's `Screen` component, fewer grid columns and Back buttons on narrow screens, and the
+   plugin's boot-page fixes so the login card fits a phone.
+4. Added *Delete completed orders* to clear test data.
+5. Wrapped the deployment as an Android app with Capacitor and tested it in the Android emulator.
+6. Added the *Mobile app* page to both presentation tours.
+
+Known messages in the browser console that come from the platform, not the app: a 404 for
+`/v1/wsg3/<tenant>/:Tenant/` (no published `Tenant` container) and "No view to act on" from the login app.
 
 ## Live ingestion (MQTT)
 

@@ -23,12 +23,14 @@ import streamlit as st
 
 import data_source as ds
 
-VIEWS = ["Fleet", "Asset detail", "Technician view", "Next steps"]
+VIEWS = ["Fleet", "Asset detail", "Technician view", "Mobile app", "Next steps"]
 COURSE_VIEWS = ["Problem", "Users", "Requirements", "Architecture", "Fleet", "Asset detail", "Technician view",
-                "Testing", "Results", "Lessons learned"]
+                "Mobile app", "Testing", "Results", "Lessons learned"]
 TESTS_DIR = ds.ROOT / "tests"
 AUDIENCES = {"pitch": "Customer pitch", "course": "Course presentation"}
 METRICS_FILE = ds.ROOT / "models" / "cmapss_metrics.json"
+# the XIOS3 technician app on CloudBackend (xios3/) and its Android test wrapper (mobile/)
+MOBILE_APP_URL = "https://jodu-joduowner-pdmtechnician.cloudbackend.cloud/"
 ALL_TYPES = "All types"          # the fleet view's "no type filter" value
 
 DEFAULTS = {
@@ -114,6 +116,10 @@ TOUR = [
          "Back in the office, the alert shows the technician's update the moment it is made. Every step from sensor "
          "to finished repair is on record.",
          "Asset detail", tab=ASSET_TABS[2]),
+    Step("On the technician's phone",
+         "The same fleet, alerts and work orders also run as a mobile app on the CloudBackend platform. Technicians "
+         "sign in on their phone, dispatch and update work orders on site, and the list adapts to a small screen.",
+         "Mobile app"),
     Step("Your equipment, next",
          "Any sensor that can send data connects the same way, and new kinds of equipment are added without "
          "changing the dashboard.",
@@ -171,6 +177,11 @@ COURSE_TOUR = [
          "The technician's update comes back to the alert, so every step from sensor reading to finished repair is "
          "on record.",
          "Asset detail", tab=ASSET_TABS[2]),
+    Step("Demo: the same data as a mobile app",
+         "We ported the technician workflow to XIOS/3 on CloudBackend: an exporter turns our database into XML, the "
+         "app keeps each user's work orders in their own CloudBackend storage, adapts to phone screens, and runs on "
+         "Android inside a Capacitor wrapper.",
+         "Mobile app"),
     # 6. testing
     Step("Testing: how we validated the system",
          "Automated tests for every part of the pipeline, including a real MQTT broker and its security setup.",
@@ -558,7 +569,7 @@ def closing_page(fleet: ds.Fleet) -> None:
 def page(view: str, fleet: ds.Fleet) -> None:
     """Draws one of presentation mode's own pages (the views that are not the dashboard itself)."""
     {"Problem": intro_page, "Users": users_page, "Requirements": requirements_page,
-     "Architecture": architecture_page, "Testing": testing_page, "Results": results_page,
+     "Architecture": architecture_page, "Mobile app": mobile_page, "Testing": testing_page, "Results": results_page,
      "Lessons learned": lessons_page}.get(view, closing_page)(fleet)
 
 
@@ -617,6 +628,44 @@ def architecture_page(fleet: ds.Fleet) -> None:
         ("🧩 Any equipment", "Channels, units, limits and thresholds of each asset type live in one registry. A new "
                             "type needs no dashboard changes."),
     ])
+
+
+def mobile_page(fleet: ds.Fleet) -> None:
+    """The technician workflow ported to a XIOS/3 app on CloudBackend, and wrapped as an Android app."""
+    st.title("The mobile technician app")
+    st.markdown("The fleet, alerts and work orders also run as a **XIOS/3** application on the **CloudBackend** "
+                "platform: XML views and processes, hosted and served by CloudBackend, with its own sign-in and "
+                "per-user storage. It works in any browser and, wrapped with Capacitor, as an Android app.")
+    accent = brand("accent") if _valid_color(brand("accent")) else DEFAULTS["accent"]
+    st.graphviz_chart(f"""digraph {{
+        rankdir=LR; bgcolor="transparent"; nodesep=0.35; ranksep=0.45;
+        node [shape=box, style="rounded,filled", fillcolor="#ffffff", color="{accent}", penwidth=2,
+              fontname="Helvetica", fontsize=12, margin="0.18,0.1"];
+        edge [color="#888888", fontname="Helvetica", fontsize=10, fontcolor="#666666"];
+        db [label="maintenance.db\n(this pipeline)", shape=cylinder];
+        exp [label="Exporter\nexport_xios3.py"];
+        xml [label="XML documents\nfleet · alerts ·\nhealth history"];
+        cbe [label="CloudBackend\nXIOS/3 app\n+ sign-in"];
+        home [label="Each user's\nwork orders\n(home://)", shape=cylinder];
+        phone [label="Browser or\nAndroid app\n(Capacitor)"];
+        db -> exp -> xml; xml -> cbe [label="upload"]; cbe -> home [label="save", dir=both];
+        cbe -> phone [label="HTTPS"];
+    }}""", width="stretch")
+    _cards([
+        ("📄 Data as XML", "The exporter writes the fleet in priority order, every alert and each asset's health "
+                          "history as small XML documents. The app binds its grids and its health chart straight "
+                          "to them."),
+        ("🔐 Sign-in and storage", "CloudBackend's own login comes first. Work orders are dispatched from an alert, "
+                                  "started, completed or rejected, and saved in the signed-in user's storage."),
+        ("📱 Phone ready", "One view adapts to the screen: on a phone each tab shows its list first and the "
+                          "detail after a tap, with fewer columns. A Capacitor wrapper turns it into an Android app."),
+    ])
+    st.markdown("---")
+    st.markdown(f"**Try it:** [{MOBILE_APP_URL}]({MOBILE_APP_URL}) (needs a CloudBackend account). "
+                "The code is in `xios3/` and `mobile/` of this repository.")
+    if course():
+        st.caption("Built with the CloudBackend developer docs and plugin: every component and operation was checked "
+                   "against the documentation, and the package against the plugin's linter, before each deploy.")
 
 
 def _metrics() -> dict:
@@ -705,6 +754,8 @@ REQUIREMENTS = [
     ("Separate admin and technician access", "Logins with two roles", "Demo: technician"),
     ("Secure device communication", "TLS, a password per device, topic ACLs", "Testing"),
     ("Work without real equipment for development and demos", "Simulator and recorded replay", "Demo: replay"),
+    ("Use the maintenance data on a phone", "XIOS/3 app on CloudBackend with a phone layout, Android wrapper",
+     "Demo: mobile app"),
 ]
 
 

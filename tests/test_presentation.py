@@ -129,7 +129,7 @@ def test_course_tour_follows_the_course_structure():
     views = [s.view for s in presentation.COURSE_TOUR]
     order = ["Problem", "Users", "Requirements", "Architecture", "Fleet", "Testing", "Lessons learned"]
     assert [views.index(v) for v in order] == sorted(views.index(v) for v in order)
-    assert len(presentation.COURSE_TOUR) == 15
+    assert len(presentation.COURSE_TOUR) == 16
 
 
 def test_switching_the_audience_swaps_the_default_wording(app):

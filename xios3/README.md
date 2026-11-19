@@ -37,6 +37,19 @@ Then upload the `data` folder again (see below). Work orders are not touched, si
    (each folder is a container of its own), then run `CloudBackend: Upload all project files to...` and pick it.
 4. In CloudBackend PaaS, open the Projects tab, select the project and deploy it.
 
+## What was done on 2026-11-19
+
+- Checked against the CloudBackend docs, the plugin's linter and the extension's schemas: start-up on `Loaded`, the
+  first-run copy of `workorders.xml` in an `otherwise` branch (the docs: `exists="false"` never runs), sign-up and
+  reset links on the login, a Sign out button, ASCII-only files.
+- Health chart: a `render` with `data/healthchart.xsl` draws the history as SVG (XIOS/3 has no chart component).
+- Work-order grid: refreshed by `datachange` and `update` only; binding it again after every save broke row selection.
+- Phone layout: `ui/DesignKit/` (the design kit's Screen component) tells the process when it runs on a phone;
+  `styles/app.css` lets one card fill the width; each tab shows its list, then the detail with a Back button.
+- `index.html` carries the plugin boot page's phone fixes, so the platform's login card fits a phone.
+- *Delete completed orders* on the Work orders tab, with an in-app confirmation.
+- Wrapped as an Android test app in `../mobile/`.
+
 ## Status (2026-11-19)
 
 Verified on a CloudBackend deployment: sign-in through the platform login app, fleet grid, asset detail and health
