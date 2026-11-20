@@ -60,7 +60,8 @@ One-time setup in CloudBackend PaaS, signed in as the owner:
 4. **Accounts.** In **Identities › Create**, make one identity per person, with a username, email and first
    password. Leave the role empty: a role opens the CloudBackend console, which app users do not need.
 5. **Admins.** For each identity that should be an admin, add a user entry with **Read** (1) to the ACL of
-   `tenant://PdM/Admins/` (or of `admin.xml`).
+   the `tenant://PdM/Admins/` container **and** of `admin.xml`. The container entry matters: without it the
+   app cannot look inside `Admins`, and the admin gets the technician view (found on the first deployment).
 6. **Deployment.** A development deployment is private to your account. To let other identities sign in, make
    it public or promote it to Shared in **Projects**, and use that address (also in `../mobile/`'s
    `capacitor.config.json` `server.url`).
@@ -86,7 +87,7 @@ data.
 - *Delete completed orders* on the Work orders tab, with an in-app confirmation.
 - Wrapped as an Android test app in `../mobile/`.
 - Admin and technician logins: shared work orders in `tenant://PdM/`, and the role read from the `Admins`
-  container's ACL (not yet tested on a deployment).
+  container's ACL. Verified on a Shared deployment on 2026-11-20 with an admin and a technician account.
 
 ## Status (2026-11-19)
 
