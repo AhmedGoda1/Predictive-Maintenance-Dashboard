@@ -1,6 +1,8 @@
 \# AI-Based Predictive Maintenance Dashboard for Milling Machines
 
+## 🚀 Live Dashboard
 
+🔗 **[Open Live Streamlit Dashboard](https://rvmr18-milling-machine-predictive-maintenance-app-y4vpab.streamlit.app/)**
 
 An experimental predictive maintenance system that uses milling machine sensor data, statistical signal processing, and machine learning to estimate cutting tool flank wear and support maintenance decision-making.
 
