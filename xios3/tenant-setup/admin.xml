@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Role marker for the XIOS3 app: upload to tenant://PdM/Admins/. Whoever can read it is an admin. -->
+<admin/>

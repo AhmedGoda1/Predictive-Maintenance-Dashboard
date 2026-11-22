@@ -1,0 +1,65 @@
+<?xml version='1.0' encoding='utf-8'?>
+<history asset="FD001-test-066" unit="cycles">
+  <point age="1.0" health="83.2" rul="125.0" status="Healthy" />
+  <point age="3.0" health="85.2" rul="123.5" status="Healthy" />
+  <point age="6.0" health="89.7" rul="122.5" status="Healthy" />
+  <point age="8.0" health="90.2" rul="123.1" status="Healthy" />
+  <point age="11.0" health="86.7" rul="125.0" status="Healthy" />
+  <point age="13.0" health="87.0" rul="125.0" status="Healthy" />
+  <point age="16.0" health="90.3" rul="124.9" status="Healthy" />
+  <point age="18.0" health="92.8" rul="124.1" status="Healthy" />
+  <point age="21.0" health="91.0" rul="124.2" status="Healthy" />
+  <point age="23.0" health="90.0" rul="124.8" status="Healthy" />
+  <point age="26.0" health="89.1" rul="121.1" status="Healthy" />
+  <point age="28.0" health="82.2" rul="115.7" status="Healthy" />
+  <point age="31.0" health="76.5" rul="120.0" status="Healthy" />
+  <point age="33.0" health="80.1" rul="119.6" status="Healthy" />
+  <point age="36.0" health="82.0" rul="120.0" status="Healthy" />
+  <point age="38.0" health="82.7" rul="118.7" status="Healthy" />
+  <point age="41.0" health="83.6" rul="114.2" status="Healthy" />
+  <point age="43.0" health="84.6" rul="120.2" status="Healthy" />
+  <point age="46.0" health="86.8" rul="120.5" status="Healthy" />
+  <point age="48.0" health="86.5" rul="118.8" status="Healthy" />
+  <point age="50.0" health="86.3" rul="118.8" status="Healthy" />
+  <point age="53.0" health="83.6" rul="119.0" status="Healthy" />
+  <point age="55.0" health="83.9" rul="116.6" status="Healthy" />
+  <point age="58.0" health="77.5" rul="115.9" status="Healthy" />
+  <point age="60.0" health="82.1" rul="113.4" status="Healthy" />
+  <point age="63.0" health="83.3" rul="105.9" status="Healthy" />
+  <point age="65.0" health="78.3" rul="102.8" status="Healthy" />
+  <point age="68.0" health="77.2" rul="104.1" status="Healthy" />
+  <point age="70.0" health="75.8" rul="105.0" status="Healthy" />
+  <point age="73.0" health="76.8" rul="102.0" status="Healthy" />
+  <point age="75.0" health="76.3" rul="97.3" status="Healthy" />
+  <point age="78.0" health="75.3" rul="94.1" status="Healthy" />
+  <point age="80.0" health="68.8" rul="91.8" status="Healthy" />
+  <point age="83.0" health="71.1" rul="82.7" status="Healthy" />
+  <point age="85.0" health="72.5" rul="81.6" status="Healthy" />
+  <point age="88.0" health="71.4" rul="77.3" status="Healthy" />
+  <point age="90.0" health="69.3" rul="70.2" status="Healthy" />
+  <point age="93.0" health="68.0" rul="67.4" status="Warning" />
+  <point age="95.0" health="65.3" rul="72.9" status="Warning" />
+  <point age="98.0" health="67.4" rul="79.5" status="Warning" />
+  <point age="100.0" health="65.6" rul="82.3" status="Warning" />
+  <point age="102.0" health="63.5" rul="79.1" status="Warning" />
+  <point age="105.0" health="61.8" rul="64.1" status="Warning" />
+  <point age="107.0" health="58.2" rul="59.1" status="Warning" />
+  <point age="110.0" health="55.8" rul="60.4" status="Warning" />
+  <point age="112.0" health="58.1" rul="58.8" status="Warning" />
+  <point age="115.0" health="55.1" rul="46.7" status="Warning" />
+  <point age="117.0" health="52.4" rul="36.9" status="Warning" />
+  <point age="120.0" health="42.0" rul="32.8" status="Warning" />
+  <point age="122.0" health="41.0" rul="26.6" status="Warning" />
+  <point age="125.0" health="40.5" rul="27.8" status="Critical" />
+  <point age="127.0" health="40.0" rul="28.4" status="Critical" />
+  <point age="130.0" health="37.3" rul="25.4" status="Critical" />
+  <point age="132.0" health="35.0" rul="31.2" status="Critical" />
+  <point age="135.0" health="33.4" rul="29.2" status="Critical" />
+  <point age="137.0" health="31.4" rul="25.1" status="Critical" />
+  <point age="140.0" health="27.2" rul="20.3" status="Critical" />
+  <point age="142.0" health="26.8" rul="22.0" status="Critical" />
+  <point age="145.0" health="23.8" rul="17.2" status="Critical" />
+  <point age="147.0" health="22.5" rul="14.7" status="Critical" />
+  <alert id="21" asset="FD001-test-066" assetName="Engine 066 (FD001 test)" raised="2020-01-06 03:00:00" level="Critical" priority="high" issue="Physical core speed drifting away from its healthy level, 8.5 standard deviations away; health 39/100; estimated RUL 27 cycle" action="Schedule a gas-path inspection of the engine core" />
+  <alert id="20" asset="FD001-test-066" assetName="Engine 066 (FD001 test)" raised="2020-01-04 20:00:00" level="Warning" priority="medium" issue="Physical core speed drifting away from its healthy level, 3.6 standard deviations away; health 69/100; estimated RUL 68 cycle" action="Schedule a gas-path inspection of the engine core" />
+</history>

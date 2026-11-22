@@ -37,6 +37,8 @@ dataset adapters (motor, C-MAPSS) ───────┴─ the same code scor
 | `pdm/pipeline.py`, `build_db.py` | Builds `maintenance.db` with the recorded demo assets |
 | `dashboard/` | Streamlit app: fleet overview, asset detail, live demo feed (builds the database on first start if missing) |
 | `tests/` | pytest suite, including integration tests against a real MQTT broker |
+| `scripts/export_xios3.py`, `xios3/` | XIOS3 technician app for CloudBackend (fleet, asset health, alerts, work orders, phone layout) and the exporter that turns `maintenance.db` into its XML data; see `xios3/README.md` |
+| `mobile/` | Capacitor Android test app that opens the deployed XIOS3 app; see `mobile/README.md` |
 
 ## Run it
 
@@ -64,27 +66,20 @@ python -m pdm.train                     # optional: retrain / re-evaluate the RU
   the fleet view draws one RUL chart per type. Status colours always come with an icon and a label.
 - A new asset type appears in both views once it is registered; no dashboard code changes.
 
-### Presentation mode (customer pitches and course presentations)
+### Presentation mode (course presentation)
 
 Switch on **🎤 Presentation mode** in the sidebar (admins), or open a link such as
-`?present=1&customer=Acme%20Aero&accent=%23c0392b&tagline=Keep%20every%20engine%20flying`. It turns the dashboard into
-a pitch for a prospective customer:
+`?present=1&team=Joni%2C%20Ahmed&accent=%23c0392b`. It turns the dashboard into the course project presentation:
 
-- **Branding on the fly:** customer name, tagline, site, accent colour, logo (URL or upload), plain names for the asset
-  types ("Engine 07" instead of `FD001-test-071`) and the closing call to action, all editable during the meeting.
-- **Any number of customers:** save each customer as a profile and switch between them from the *Customer* box.
-  Profiles last while the browser tab is open; *Download profiles* / *Load profiles* carry them to another session.
+- **Guided tour (16 steps):** Next / Back drives the app itself, in the order of the course's demonstration: the
+  problem, the users, the requirements and what was built, the architecture, the live demo (health index, replay, RUL
+  ranking, alerts, one engine to failure, the work-order loop, the mobile app on CloudBackend), testing (the automated
+  test suite and the model's results on held-out C-MAPSS engines against two baselines) and lessons learned.
+- **Customize panel:** project title, subtitle, team members, course, accent colour, logo (URL or upload), plain names
+  for the asset types ("Engine 07" instead of `FD001-test-071`), the closing line and the lessons learned. Save them as
+  a profile and switch between profiles from the *Profile* box; *Download profiles* / *Load profiles* carry them to
+  another session. The panel and the profile box are hidden while the guided tour runs, so only the tour shows.
 - **Clean layout:** hides the MQTT and refresh panels, the Streamlit toolbar and the model internals in the tables.
-- **Guided tour (9 steps):** Next / Back drives the app itself, focused on the fleet overview and the work-order loop:
-  fleet at a glance, the replay, the priority list, fleet-wide alerts, the asset most at risk, dispatching a work
-  order, the technician's page, the update coming back, and a closing *Next steps* page.
-
-**Course presentation:** set *Audience* to *Course presentation* (or add `&audience=course&team=...` to the link) for a
-15-step tour in the order of the course's demonstration: the problem, the users, the requirements and what was built,
-the architecture, the live demo (health index, replay, RUL ranking, alerts, one engine to failure, the work-order loop),
-testing (the automated test suite and the model's results on held-out C-MAPSS engines against two baselines) and
-lessons learned. The profile then holds the project title, subtitle, team members, course, accent colour and the
-lessons learned, and a *Before you present* checklist sits in the sidebar.
 
 It uses the recorded replay only, so it needs no broker or devices. All settings live in the presenter's own session.
 Dispatching and completing a work order during the tour are real actions on the shared database.
@@ -117,6 +112,30 @@ Dispatch a work order on an alert, then click *Start work* or *Complete* in Node
 With accounts in the app's secrets, the dashboard asks for a login. An **admin** sees everything above; a
 **maintenance** user sees only the open work orders and marks them started, completed or rejected (recorded like
 a confirmation from the service). Without accounts there is no login. **Setup: [docs/LOGIN.md](docs/LOGIN.md).**
+
+## Mobile technician app on CloudBackend (XIOS/3)
+
+The technician workflow also runs as a mobile-ready app on the [CloudBackend](https://cloudbackend.com) platform,
+written in XIOS/3 (XML views and processes that CloudBackend hosts, with its own sign-in and per-user storage).
+Presentation mode shows it on its *Mobile app* page.
+
+```
+maintenance.db ──scripts/export_xios3.py──▶ xios3/data/*.xml ──upload──▶ CloudBackend: XIOS/3 app + sign-in
+                                                                                  │ work orders shared (tenant://PdM/)
+                                                                                  ▼
+                                                                    browser, or Android app (mobile/, Capacitor)
+```
+
+- **`xios3/`**: fleet in priority order, asset detail with a health chart (SVG drawn by an XSLT, since XIOS/3 has no
+  chart component) and the asset's alerts, every alert with a dispatch form, and a work-order list with Start,
+  Complete, Reject and *Delete completed orders*. On a phone each tab shows its list first and the detail after a tap.
+  Admins see every tab; technicians see only the shared work orders, like the dashboard's maintenance login.
+  Upload, deploy and login setup are in `xios3/README.md`.
+- **`mobile/`**: a Capacitor 8 Android project whose only screen opens the deployed app, for testing on a phone or an
+  emulator (not a store release). Build steps are in `mobile/README.md`.
+
+Known messages in the browser console that come from the platform, not the app: a 404 for
+`/v1/wsg3/<tenant>/:Tenant/` (no published `Tenant` container) and "No view to act on" from the login app.
 
 ## Live ingestion (MQTT)
 

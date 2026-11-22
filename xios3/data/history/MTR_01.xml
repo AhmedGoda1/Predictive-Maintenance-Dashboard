@@ -1,0 +1,68 @@
+<?xml version='1.0' encoding='utf-8'?>
+<history asset="MTR_01" unit="min">
+  <point age="0.0" health="93.0" rul="30.7" status="Healthy" />
+  <point age="0.4" health="98.8" rul="30.7" status="Healthy" />
+  <point age="1.0" health="91.8" rul="30.8" status="Healthy" />
+  <point age="1.4" health="92.0" rul="30.8" status="Healthy" />
+  <point age="1.8" health="96.5" rul="30.8" status="Healthy" />
+  <point age="2.3" health="87.7" rul="28.4" status="Healthy" />
+  <point age="2.8" health="95.2" rul="28.3" status="Healthy" />
+  <point age="3.3" health="95.3" rul="28.6" status="Healthy" />
+  <point age="3.7" health="89.0" rul="28.6" status="Healthy" />
+  <point age="4.2" health="97.3" rul="28.4" status="Healthy" />
+  <point age="4.7" health="88.6" rul="30.7" status="Healthy" />
+  <point age="5.1" health="87.6" rul="27.2" status="Healthy" />
+  <point age="5.6" health="82.2" rul="26.1" status="Healthy" />
+  <point age="6.1" health="84.7" rul="27.2" status="Healthy" />
+  <point age="6.5" health="75.8" rul="26.1" status="Healthy" />
+  <point age="7.0" health="88.6" rul="28.0" status="Healthy" />
+  <point age="7.5" health="82.4" rul="28.0" status="Healthy" />
+  <point age="7.9" health="83.9" rul="24.0" status="Healthy" />
+  <point age="8.4" health="92.6" rul="28.1" status="Healthy" />
+  <point age="8.9" health="82.8" rul="29.4" status="Healthy" />
+  <point age="9.3" health="86.9" rul="29.3" status="Healthy" />
+  <point age="9.8" health="71.9" rul="29.2" status="Healthy" />
+  <point age="10.3" health="69.4" rul="29.2" status="Warning" />
+  <point age="10.8" health="75.1" rul="29.2" status="Healthy" />
+  <point age="11.2" health="78.5" rul="27.0" status="Healthy" />
+  <point age="11.7" health="82.4" rul="27.1" status="Healthy" />
+  <point age="12.2" health="100.0" rul="21.3" status="Healthy" />
+  <point age="12.6" health="86.4" rul="20.5" status="Healthy" />
+  <point age="13.1" health="99.6" rul="20.5" status="Healthy" />
+  <point age="13.6" health="98.9" rul="17.5" status="Healthy" />
+  <point age="14.0" health="93.7" rul="17.4" status="Healthy" />
+  <point age="14.5" health="90.1" rul="17.0" status="Healthy" />
+  <point age="15.0" health="84.3" rul="15.7" status="Healthy" />
+  <point age="15.4" health="34.2" rul="22.6" status="Healthy" />
+  <point age="15.9" health="23.1" rul="3.5" status="Critical" />
+  <point age="16.4" health="25.3" rul="3.4" status="Critical" />
+  <point age="16.8" health="30.7" rul="3.4" status="Critical" />
+  <point age="17.3" health="57.3" rul="3.6" status="Warning" />
+  <point age="17.8" health="85.2" rul="16.0" status="Warning" />
+  <point age="18.3" health="82.7" rul="16.2" status="Warning" />
+  <point age="26.6" health="50.5" rul="17.8" status="Warning" />
+  <point age="27.1" health="67.4" rul="18.1" status="Warning" />
+  <point age="27.6" health="63.9" rul="18.1" status="Warning" />
+  <point age="28.0" health="63.8" rul="22.2" status="Warning" />
+  <point age="28.5" health="77.9" rul="22.4" status="Healthy" />
+  <point age="29.0" health="82.4" rul="22.4" status="Healthy" />
+  <point age="29.4" health="57.2" rul="22.3" status="Healthy" />
+  <point age="29.9" health="20.7" rul="3.4" status="Critical" />
+  <point age="30.4" health="21.3" rul="3.5" status="Critical" />
+  <point age="30.8" health="31.9" rul="4.5" status="Critical" />
+  <point age="31.3" health="28.2" rul="4.7" status="Critical" />
+  <point age="31.8" health="26.5" rul="2.0" status="Critical" />
+  <point age="32.2" health="14.2" rul="10.1" status="Critical" />
+  <point age="32.7" health="12.5" rul="10.9" status="Critical" />
+  <point age="33.2" health="12.9" rul="10.9" status="Critical" />
+  <point age="33.7" health="17.4" rul="10.9" status="Critical" />
+  <point age="34.1" health="18.7" rul="10.9" status="Critical" />
+  <point age="34.6" health="23.2" rul="4.2" status="Critical" />
+  <point age="35.1" health="25.9" rul="4.2" status="Critical" />
+  <point age="35.5" health="0.0" rul="0.0" status="Failed" />
+  <alert id="5" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 18:00:30" level="Failed" priority="urgent" issue="Brushed DC motor stopped working" action="Take the asset out of service and inspect it before restarting" />
+  <alert id="4" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:54:47" level="Critical" priority="high" issue="High-frequency vibration rising (bearing wear or brush arcing), 5.0x the healthy level; health 29/100" action="Check bearings and brush contact, look for arcing marks" />
+  <alert id="3" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:52:39" level="Warning" priority="medium" issue="High-frequency vibration rising (bearing wear or brush arcing), 1.9x the healthy level; health 64/100" action="Check bearings and brush contact, look for arcing marks" />
+  <alert id="2" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:40:32" level="Critical" priority="high" issue="High-frequency vibration rising (bearing wear or brush arcing), 6.3x the healthy level; health 31/100" action="Check bearings and brush contact, look for arcing marks" />
+  <alert id="1" asset="MTR_01" assetName="Brushed DC Motor (run-to-failure test)" raised="2020-12-02 17:35:10" level="Warning" priority="medium" issue="Elevated 1x vibration (imbalance, misalignment or commutator wear), 1.8x the healthy level; health 69/100" action="Inspect shaft balance, alignment and the commutator surface" />
+</history>
