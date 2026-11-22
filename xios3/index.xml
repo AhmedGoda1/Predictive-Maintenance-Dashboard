@@ -6,9 +6,12 @@
     host://data/fleet.xml            fleet in priority order      (written by scripts/export_xios3.py)
     host://data/alerts.xml           all alerts, newest first     (written by scripts/export_xios3.py)
     host://data/history/<id>.xml     health history per asset     (written by scripts/export_xios3.py)
-    home://workorders.xml  work orders, created and updated by this app; copied from
-                                     host://data/workorders.xml the first time a user opens the app
-                                     (host:// is read-only once deployed; home:// needs the login app below)
+    tenant://PdM/workorders.xml      work orders, shared by every signed-in user: admins dispatch them,
+                                     technicians update them. Copied from host://data/workorders.xml the
+                                     first time anyone opens the app (host:// is read-only once deployed).
+    tenant://PdM/Admins/admin.xml    role marker: an identity that can read it is an admin; everyone else
+                                     is a technician. The Admins container's ACL decides who that is.
+  Console setup (container ACLs, accounts): README.md, "Logins: admin and technician".
 -->
 <application name="PdmTechnician" icon="icon://rocket" instances="0"
              xmlns:xlink="http://www.w3.org/1999/xlink"
@@ -26,8 +29,8 @@
     <description>Predictive maintenance: fleet priority, asset health, alerts and work orders.</description>
   </about>
 
-  <!-- The platform's login application runs first: a deployment has no signed-in user otherwise,
-       and home:// (where work orders are saved) only exists for one. View and process wait for it. -->
+  <!-- The platform's login application runs first: a deployment has no signed-in user otherwise, and the
+       tenant:// ACLs that decide who is an admin need one. View and process wait for it. -->
   <process xlink:actuate="onLoad" xlink:href="xios://apps/login.xml"/>
 
   <!-- create/reset show the sign-up and forgot-password links (plugin login.md: all three ways in).
@@ -62,6 +65,7 @@
 
       <panel name="topBar" type="columns" gap="8" height="32">
         <label name="lblSummary" size="14" bold="true" text="Loading fleet&#8230;"/>
+        <label name="lblRole" width="140" text=""/>
         <button name="btnSignOut" text="Sign out"/>
       </panel>
 
@@ -219,12 +223,52 @@
         </method>
       </operation>
 
-      <!-- the platform's login app ran first, so home:// is the signed-in user's own database -->
+      <!-- the platform's login app ran first, so tenant:// answers as the signed-in user -->
       <operation name="call" value="openOrders"/>
 
       <!-- phone, tablet or desktop: the design kit's Screen component measures the window -->
       <alias name="screen" value="{#PdmView#screen.getValue()}" model="value"/>
       <operation name="call" value="applyScreen"/>
+
+      <operation name="call" value="checkRole"/>
+    </step>
+
+    <!-- ======================== role: admin or technician
+         Like the Streamlit dashboard's admin and maintenance logins. CloudBackend gives an app no documented call
+         for "the signed-in user's role", so the role comes from an ACL: tenant://PdM/Admins/ is readable only by
+         the identities the tenant owner lists there (and the owner), so only they see admin.xml exist. -->
+    <step id="checkRole">
+      <operation name="decision" value="tenant://PdM/Admins/admin.xml">
+        <when exists="true">
+          <alias name="role" value="admin" model="value"/>
+          <operation name="callMethod" value="#PdmView#lblRole">
+            <method name="setValue"><param type="string">Signed in as admin</param></method>
+          </operation>
+        </when>
+        <otherwise>
+          <alias name="role" value="technician" model="value"/>
+          <operation name="call" value="technicianLayout"/>
+        </otherwise>
+      </operation>
+    </step>
+
+    <!-- technicians get the Streamlit maintenance page: the work orders only, without dispatching or deleting -->
+    <step id="technicianLayout">
+      <operation name="callMethod" value="#PdmView#tabs">
+        <method name="selectTab"><param type="string">tabOrders</param></method>
+      </operation>
+      <operation name="action" value="#PdmView">
+        <component name="tabFleet"           action="hide"/>
+        <component name="tabAlerts"          action="hide"/>
+        <component name="btnDeleteCompleted" action="hide"/>
+        <component name="deleteConfirm"      action="hide"/>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblSummary">
+        <method name="setValue"><param type="string">Work orders</param></method>
+      </operation>
+      <operation name="callMethod" value="#PdmView#lblRole">
+        <method name="setValue"><param type="string">Signed in as technician</param></method>
+      </operation>
     </step>
 
     <!-- ======================== screen size (pattern from the plugin's design-kit process) -->
@@ -298,8 +342,8 @@
 
     <!-- ======================== work orders -->
     <step id="openOrders">
-      <!-- The work-order document lives in the signed-in user's home folder; create it the first time -->
-      <operation name="decision" value="home://workorders.xml">
+      <!-- One work-order document for everyone, in the tenant's shared database; created the first time -->
+      <operation name="decision" value="tenant://PdM/workorders.xml">
         <when exists="true">
           <operation name="call" value="loadOrders"/>
         </when>
@@ -307,7 +351,7 @@
              statement"), so the first-run branch is the otherwise -->
         <otherwise>
           <operation name="database" value="host://data/workorders.xml">
-            <copy to="home://" silent="true"/>
+            <copy to="tenant://PdM/" silent="true"/>
           </operation>
           <operation name="call" value="loadOrders"/>
         </otherwise>
@@ -318,7 +362,7 @@
       <!-- Bound and changed by the same URL, as in the plugin's measured design-kit example (sample mode:
            "change store type=append on the listing's URL, so the list grows"): the runtime then shares one
            document between the grid and the change, and the grid redraws. -->
-      <operation name="bind" value="home://workorders.xml">
+      <operation name="bind" value="tenant://PdM/workorders.xml">
         <component view="PdmView" name="ordersGrid" select="workorders"/>
       </operation>
     </step>
@@ -403,7 +447,7 @@
 
     <!-- ======================== alerts: create the work order -->
     <step id="dispatch">
-      <operation name="change" value="home://workorders.xml">
+      <operation name="change" value="tenant://PdM/workorders.xml">
         <store select="/workorders" type="append">
           <workorder id="WO-{$alert#@id}" alert="{$alert#@id}" asset="{$alert#@asset}"
                      assetName="{$alert#@assetName}" priority="{$alert#@priority}" level="{$alert#@level}"
@@ -422,7 +466,7 @@
     </step>
 
     <step id="refreshOrders">
-      <operation name="save" value="home://workorders.xml"/>
+      <operation name="save" value="tenant://PdM/workorders.xml"/>
       <!-- The grid redraws itself (datachange="true", grid docs) and update refreshes it from its bound data
            (update method docs). It is NOT bound again here: every bind added another binding to the same
            grid, and after a few saves a row click hit a stale one
@@ -446,21 +490,21 @@
     </step>
 
     <step id="orderStart">
-      <operation name="change" value="home://workorders.xml">
+      <operation name="change" value="tenant://PdM/workorders.xml">
         <store select="/workorders/workorder[@id='{$order#@id}']/@status" type="replaceText">in_progress</store>
       </operation>
       <operation name="call" value="saveOrders"/>
     </step>
 
     <step id="orderComplete">
-      <operation name="change" value="home://workorders.xml">
+      <operation name="change" value="tenant://PdM/workorders.xml">
         <store select="/workorders/workorder[@id='{$order#@id}']/@status" type="replaceText">completed</store>
       </operation>
       <operation name="call" value="saveOrders"/>
     </step>
 
     <step id="orderReject">
-      <operation name="change" value="home://workorders.xml">
+      <operation name="change" value="tenant://PdM/workorders.xml">
         <store select="/workorders/workorder[@id='{$order#@id}']/@status" type="replaceText">rejected</store>
       </operation>
       <operation name="call" value="saveOrders"/>
@@ -490,7 +534,7 @@
     <step id="deleteCompleted">
       <!-- change > delete with an XPath select (the docs' change operation: "Deleting data is done ... by supplying
            an XPath expression in the select attribute"), then save, as for every other work-order write -->
-      <operation name="change" value="home://workorders.xml">
+      <operation name="change" value="tenant://PdM/workorders.xml">
         <delete select="/workorders/workorder[@status='completed']"/>
       </operation>
       <operation name="call" value="refreshOrders"/>
@@ -501,7 +545,7 @@
         <component name="btnReject"   action="disable"/>
       </operation>
       <operation name="call" value="hideDeleteConfirm"/>
-      <operation name="decision" value="home://workorders.xml">
+      <operation name="decision" value="tenant://PdM/workorders.xml">
         <when test="count(/workorders/workorder[@status='completed']) = 0">
           <operation name="callMethod" value="#PdmView#lblOrder">
             <method name="setValue"><param type="string">Completed work orders deleted.</param></method>

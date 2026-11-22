@@ -121,7 +121,7 @@ Presentation mode shows it on its *Mobile app* page.
 
 ```
 maintenance.db ──scripts/export_xios3.py──▶ xios3/data/*.xml ──upload──▶ CloudBackend: XIOS/3 app + sign-in
-                                                                                  │ work orders saved per user (home://)
+                                                                                  │ work orders shared (tenant://PdM/)
                                                                                   ▼
                                                                     browser, or Android app (mobile/, Capacitor)
 ```
@@ -129,7 +129,8 @@ maintenance.db ──scripts/export_xios3.py──▶ xios3/data/*.xml ──upl
 - **`xios3/`**: fleet in priority order, asset detail with a health chart (SVG drawn by an XSLT, since XIOS/3 has no
   chart component) and the asset's alerts, every alert with a dispatch form, and a work-order list with Start,
   Complete, Reject and *Delete completed orders*. On a phone each tab shows its list first and the detail after a tap.
-  Upload and deploy steps are in `xios3/README.md`.
+  Admins see every tab; technicians see only the shared work orders, like the dashboard's maintenance login.
+  Upload, deploy and login setup are in `xios3/README.md`.
 - **`mobile/`**: a Capacitor 8 Android project whose only screen opens the deployed app, for testing on a phone or an
   emulator (not a store release). Build steps are in `mobile/README.md`.
 
