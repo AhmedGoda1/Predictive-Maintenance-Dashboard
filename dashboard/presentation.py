@@ -27,7 +27,7 @@ VIEWS = ["Problem", "Users", "Requirements", "Architecture", "Fleet", "Asset det
 TESTS_DIR = ds.ROOT / "tests"
 METRICS_FILE = ds.ROOT / "models" / "cmapss_metrics.json"
 # the XIOS3 technician app on CloudBackend (xios3/) and its Android test wrapper (mobile/)
-MOBILE_APP_URL = "https://jodu-joduowner-pdmtechnician.cloudbackend.cloud/"
+MOBILE_APP_URL = "https://jodu-2-pdm-technician.cloudbackend.cloud"
 ALL_TYPES = "All types"          # the fleet view's "no type filter" value
 
 DEFAULT_LESSONS = {
